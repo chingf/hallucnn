@@ -1,6 +1,7 @@
 import numpy as np
 from scipy import linalg
 import scipy.signal as sg
+import resampy
 
 window_step = int(128*1.) #128
 window_size = window_step*2
@@ -35,7 +36,10 @@ def soundsc(X, gain_scale=.9, copy=True):
     X = X * 2 ** 15
     return X.astype('int16')
 
-def sinusoid_analysis(X, input_sample_rate, resample_block=window_step, copy=True):
+def sinusoid_analysis(
+    X, input_sample_rate, resample_block=window_step, copy=True,
+    analysis_sample_rate=8000
+    ):
     """
     From https://github.com/kastnerkyle/tools
     Contruct a sinusoidal model for the input signal.
@@ -66,16 +70,10 @@ def sinusoid_analysis(X, input_sample_rate, resample_block=window_step, copy=Tru
     """
 
     X = np.array(X, copy=copy)
-    resample_to = 8000
+
+    resample_to = analysis_sample_rate
     if input_sample_rate != resample_to:
-        #if input_sample_rate % resample_to != 0:
-        #    raise ValueError("Input sample rate must be a multiple of 8k!")
-        # Should be able to use resample... ?
-
-        resampled_count = round(len(X) * resample_to / input_sample_rate)
-        X = sg.resample(X, resampled_count) #, window=sg.hanning(len(X)))
-
-        #X = sg.decimate(X, input_sample_rate // resample_to, zero_phase=True)
+        X = resampy.resample(X, input_sample_rate, analysis_sample_rate)
     step_size = 2 * round(resample_block / input_sample_rate * resample_to / 2.)
     print(step_size)
     a, g, e = lpc_analysis(
@@ -85,7 +83,7 @@ def sinusoid_analysis(X, input_sample_rate, resample_block=window_step, copy=Tru
         )
     f, m = lpc_to_frequency(a, g)
     f_hz = f * resample_to / (2 * np.pi)
-    return f_hz, m
+    return f_hz, m, a, g, e
 
 def sinusoid_synthesis(frequencies_hz, magnitudes, input_sample_rate=16000,
                        resample_block=window_step):
@@ -128,9 +126,124 @@ def sinusoid_synthesis(frequencies_hz, magnitudes, input_sample_rate=16000,
         synthesized += sines
     return synthesized
 
+def lpc_synthesis(lp_coefficients, per_frame_gain, residual_excitation=None,
+                  voiced_frames=None, window_step=128, emphasis=0.9):
+    """
+    Synthesize a signal from LPC coefficients
+    Based on code from:
+        http://labrosa.ee.columbia.edu/matlab/sws/
+        http://web.uvic.ca/~tyoon/resource/auditorytoolbox/auditorytoolbox/synlpc.html
+    Parameters
+    ----------
+    lp_coefficients : ndarray
+        Linear prediction coefficients
+    per_frame_gain : ndarray
+        Gain coefficients
+    residual_excitation : ndarray or None, optional (default=None)
+        Residual excitations. If None, this will be synthesized with white noise
+    voiced_frames : ndarray or None, optional (default=None)
+        Voiced frames. If None, all frames assumed to be voiced.
+    window_step : int, optional (default=128)
+        The size (in samples) of the space between each window
+    emphasis : float, optional (default=0.9)
+        The emphasis coefficient to use for filtering
+    overlap_add : bool, optional (default=True)
+        What type of processing to use when joining windows
+    copy : bool, optional (default=True)
+       Whether to copy the input X or modify in place
+    Returns
+    -------
+    synthesized : ndarray
+        Sound vector synthesized from input arguments
+    References
+    ----------
+    D. P. W. Ellis (2004), "Sinewave Speech Analysis/Synthesis in Matlab",
+    Web resource, available: http://www.ee.columbia.edu/ln/labrosa/matlab/sws/
+    """
+    # TODO: Incorporate better synthesis from
+    # http://eecs.oregonstate.edu/education/docs/ece352/CompleteManual.pdf
+    window_size = 2 * window_step
+    [n_windows, order] = lp_coefficients.shape
+
+    n_points = (n_windows + 1) * window_step
+    n_excitation_points = n_points + window_step + window_step // 2
+
+    random_state = np.random.RandomState(1999)
+    if residual_excitation is None:
+        # Need to generate excitation
+        if voiced_frames is None:
+            # No voiced/unvoiced info
+            voiced_frames = np.ones((lp_coefficients.shape[0], 1))
+        residual_excitation = np.zeros((n_excitation_points))
+        f, m = lpc_to_frequency(lp_coefficients, per_frame_gain)
+        t = np.linspace(0, 1, window_size, endpoint=False)
+        hanning = sg.hanning(window_size)
+        for window in range(n_windows):
+            window_base = window * window_step
+            index = window_base + np.arange(window_size)
+            if voiced_frames[window]:
+                sig = np.zeros_like(t)
+                cycles = np.cumsum(f[window][0] * t)
+                sig += sg.sawtooth(cycles, 0.001)
+                residual_excitation[index] += hanning * sig
+            residual_excitation[index] += hanning * 0.01 * random_state.randn(
+                window_size)
+    else:
+        n_excitation_points = residual_excitation.shape[0]
+        n_points = n_excitation_points + window_step + window_step // 2
+    residual_excitation = np.hstack((residual_excitation,
+                                     np.zeros(window_size)))
+    if voiced_frames is None:
+        voiced_frames = np.ones_like(per_frame_gain)
+
+    synthesized = np.zeros((n_points))
+    for window in range(n_windows):
+        window_base = window * window_step
+        oldbit = synthesized[window_base + np.arange(window_step)]
+        w_coefs = lp_coefficients[window]
+        if not np.all(w_coefs):
+            # Hack to make lfilter avoid
+            # ValueError: BUG: filter coefficient a[0] == 0 not supported yet
+            # when all coeffs are 0
+            w_coefs = [1]
+        g_coefs = voiced_frames[window] * per_frame_gain[window]
+        index = window_base + np.arange(window_size)
+        newbit = g_coefs * sg.lfilter([1], w_coefs,
+                                      residual_excitation[index])
+        synthesized[index] = np.hstack((oldbit, np.zeros(
+            (window_size - window_step))))
+        synthesized[index] += sg.hanning(window_size) * newbit
+    synthesized = sg.lfilter([1], [1, -emphasis], synthesized)
+    return synthesized
+
+
+def soundsc(X, gain_scale=.9, copy=True):
+    """
+    Approximate implementation of soundsc from MATLAB without the audio playing.
+    Parameters
+    ----------
+    X : ndarray
+        Signal to be rescaled
+    gain_scale : float
+        Gain multipler, default .9 (90% of maximum representation)
+    copy : bool, optional (default=True)
+        Whether to make a copy of input signal or operate in place.
+    Returns
+    -------
+    X_sc : ndarray
+        (-32767, 32767) scaled version of X as int16, suitable for writing
+        with scipy.io.wavfile
+    """
+    X = np.array(X, copy=copy)
+    X = (X - X.min()) / (X.max() - X.min())
+    X = 2 * X - 1
+    X = gain_scale * X
+    X = X * 2 ** 15
+    return X.astype('int16')
+
 def lpc_analysis(X, order=8, window_step=window_step, window_size=window_size,
-                 emphasis=0.9, voiced_start_threshold=.9,
-                 voiced_stop_threshold=.6, truncate=False, copy=True):
+                 emphasis=0.9,
+                 truncate=False, copy=True):
     """
     From https://github.com/kastnerkyle/tools
     Extract LPC coefficients from a signal
@@ -157,12 +270,6 @@ def lpc_analysis(X, order=8, window_step=window_step, window_size=window_size,
 
     emphasis : float, optional (default=0.9)
         The emphasis coefficient to use for filtering
-
-    voiced_start_threshold : float, optional (default=0.9)
-        Upper power threshold for estimating when speech has started
-
-    voiced_stop_threshold : float, optional (default=0.6)
-        Lower power threshold for estimating when speech has stopped
 
     truncate : bool, optional (default=False)
         Whether to cut the data at the last window or do zero padding.

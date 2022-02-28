@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 import scipy.io.wavfile
 import librosa
 import resampy
@@ -40,18 +41,37 @@ class SpeechManipulator(object):
 
         wav_paths, output_paths = self.get_paths('sinewave')
         for wav_path, output_path in zip(wav_paths, output_paths):
-            sr, X = scipy.io.wavfile.read(wav_path)
-            #X, sr = librosa.load(wav_path, sr=8000)
+            X, sr = librosa.load(wav_path, sr=8000)
+            analysis_sample_rate = sr
+
             X = X.astype('float32') / (2 ** 15) # From kk?
             if len(X.shape) == 2: # In case of stereo sound
                 X = X[:, 0]
 
-            X = resampy.resample(X, sr, 8000)
-            sr = 8000
-
-            freq, magnit = utils.sinusoid_analysis(X, input_sample_rate=sr)
-            X_sine = utils.sinusoid_synthesis(freq, magnit)
+            freq, magnit, a, g, e = utils.sinusoid_analysis(
+                X, input_sample_rate=sr,
+                analysis_sample_rate=analysis_sample_rate
+                )
+            X_sine_lpc = utils.lpc_synthesis(
+                a, g,
+                residual_excitation=None,
+                voiced_frames=None, window_step=128, emphasis=0.9
+                )
+            X_sine = utils.sinusoid_synthesis(
+                freq, magnit, input_sample_rate=analysis_sample_rate
+                )
             scipy.io.wavfile.write(output_path, sr, utils.soundsc(X_sine))
+
+            plt.subplot(311)
+            plt.specgram(X, Fs=sr)
+            plt.subplot(312)
+            plt.specgram(X_sine, Fs=sr)
+            plt.subplot(313)
+            plt.specgram(X_sine_lpc, Fs=sr)
+            plt.xlabel('Time')
+            plt.ylabel('Frequency')
+            plt.suptitle(output_path)
+            plt.show()
 
 if __name__ == "__main__":
     sm = SpeechManipulator(configs.speech_dir, configs.manipulated_speech_dir)
