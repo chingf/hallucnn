@@ -5,6 +5,9 @@ from math import ceil
 
 import torch
 import torch.nn as nn
+import pickle
+
+
 
 class ConvLayer(nn.Module):
     """
@@ -16,30 +19,53 @@ class ConvLayer(nn.Module):
 
     def __init__(
             self, input_size, in_channels, out_channels, kernel_size, stride,
-            printme=False
+            printme=False, layer1 = False, layer2 = False
             ):
 
         super(ConvLayer, self).__init__()
-        p0 = self._get_padding(input_size[0], kernel_size[0], stride) # H
-        p1 = self._get_padding(input_size[1], kernel_size[1], stride) # W
-        # Make convolutional layer
+        self.layer1 = layer1
+        self.layer2 = layer2
+        self.convcount = 1
+        self.p0a,self.p0b = self._get_padding(input_size[0], kernel_size[0], stride) # H
+        self.p1a, self.p1b = self._get_padding(input_size[1], kernel_size[1], stride) # W
+
         conv = nn.Conv2d(
-            in_channels=in_channels, out_channels=out_channels,
-            kernel_size=kernel_size, stride=stride,
-            padding_mode='zeros', padding=(p0, p1),
-            bias=True)
+                in_channels=in_channels, out_channels=out_channels,
+                kernel_size=kernel_size, stride=stride,
+                padding_mode='zeros', padding=(self.p0a, self.p1a),
+                bias=True)
         self.block = nn.Sequential(conv, nn.ReLU())
         self.printme = printme
 
     def forward(self, _input):
         # NHWC to NCHW reshaping
         _input = torch.permute(_input, (0, 3, 1, 2))
+
+        input_size = _input.size()
+        
+        # Make convolutional layer
+
+        # Janky work around for the rectagular filters in conv1 
+        if self.layer1:
+            _input = torch.nn.functional.pad(_input, ( 0, 2, 0,0)) # [left, right, top, bot]
+        if self.layer2: 
+            _input = torch.nn.functional.pad(_input, ( 0, 0, 0,2)) # [left, right, top, bot]
+
         output = self.block(_input)
         # NCHW to NHWC reshaping
         output = torch.permute(output, (0, 2, 3, 1))
+
+        """
+        # Print Shape 
+        print('conv ' + str(self.convcount) + ' layer:')
+        self.convcount += 1 
+        print(output.shape)
+        """
+
         if self.printme:
+            print('conv layer:')
             print(output.shape)
-            print(output)
+            print(output[0][0][0])
             print()
         return output
 
@@ -50,9 +76,10 @@ class ConvLayer(nn.Module):
         pad_total = int((output_size - 1) * stride + kernel_size - input_size)
         pad_left = int(pad_total/2)
         pad_right = pad_total - pad_left
+        
         if pad_left != pad_right:
             warnings.warn('Inconsistent tf pad calculation in ConvLayer.')
-        return pad_left
+        return pad_left, pad_right
 
 class LRNorm(nn.Module):
     """
@@ -65,6 +92,7 @@ class LRNorm(nn.Module):
         self.block = nn.LocalResponseNorm(
             depth_radius*2+1, alpha*(depth_radius*2+1), beta, bias
             )
+        self.lrnormcount = 1
         self.printme = printme
 
     def forward(self, _input):
@@ -73,9 +101,18 @@ class LRNorm(nn.Module):
         output = self.block(_input)
         # NCHW to NHWC reshaping
         output = torch.permute(output, (0, 2, 3, 1))
+       
+        """
+        # Print Shape 
+        print('lrnorm ' + str(self.lrnormcount) + ' layer:')
+        self.lrnormcount += 1 
+        print(output.shape)
+        """
+
         if self.printme:
+            print('norm layer:')
             print(output.shape)
-            print(output)
+            print(output[0][0][0])
             print()
         return output
 
@@ -89,10 +126,11 @@ class PoolLayer(nn.Module):
     """
 
     def __init__(
-            self, kernel_size, stride, max_pool=True, printme=False, input_size=None
+            self, kernel_size, stride, max_pool=True, printme=False, input_size=None, layer1 = False
             ):
-
         super(PoolLayer, self).__init__()
+        self.poolcount = 1
+        self.layer1 = layer1
         if input_size is not None:
             padding = self._get_padding(input_size, kernel_size, stride)
         else:
@@ -110,13 +148,25 @@ class PoolLayer(nn.Module):
     def forward(self, _input):
         # NHWC to NCHW reshaping
         _input = torch.permute(_input, (0, 3, 1, 2))
+        if self.layer1:
+             _input = torch.nn.functional.pad(_input, ( 0, 0, 1,0)) # [left, right, top, bot]
         output = self.block(_input)
         # NCHW to NHWC reshaping
         output = torch.permute(output, (0, 2, 3, 1))
+
+        """
+        # Print Shape 
+        print('pool' + str(self.poolcount) + ' layer:')
+        self.poolcount += 1 
+        print(output.shape)
+        """
+
         if self.printme:
+            print('pool layer:')
             print(output.shape)
-            print(output)
+            print(output[0][0][0])
             print()
+         
         return output
 
     def _get_padding(self, input_size, kernel_size, stride):
