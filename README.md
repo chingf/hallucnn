@@ -9,4 +9,4 @@ Standard python packages, PyTorch
 
 # Notes
 - Model weights are not on github since the filesize is too big.
-
+- [Repo Structure](https://neptune.ai/blog/how-to-organize-deep-learning-projects-best-practices)
