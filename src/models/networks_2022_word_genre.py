@@ -47,7 +47,7 @@ class BranchedNetwork(nn.Module):
 
     def forward(self, _input):
         data_edge = self.layer_params_dict['data']['edge']
-        _input = torch.reshape(_input, (-1, data_edge[0], data_edge[1], 1))
+        _input = torch.reshape(_input, (-1, 1, data_edge[0], data_edge[1]))
         speech_output = self.speech_branch(_input)
         genre_output = self.genre_branch(_input)
         return speech_output, genre_output
@@ -120,7 +120,7 @@ class BranchedNetwork(nn.Module):
         speech_branch['pool5_W'] = layers.PoolLayer(
             self.layer_params_dict['pool5_W']['edge'],
             self.layer_params_dict['pool5_W']['stride'], max_pool=False,
-            input_size=11,
+            input_size=11
             )
         speech_branch['pool5_flat_W'] = layers.FlattenPoolLayer(self.n_out_pool5_W)
         speech_branch['fc6_W'] = layers.FullyConnected(self.n_out_pool5_W, self.layer_params_dict['fc6_W']['n_units'])

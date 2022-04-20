@@ -38,11 +38,7 @@ class ConvLayer(nn.Module):
         self.printme = printme
 
     def forward(self, _input):
-        # NHWC to NCHW reshaping
-        _input = torch.permute(_input, (0, 3, 1, 2))
 
-        input_size = _input.size()
-        
         # Make convolutional layer
 
         # Janky work around for the rectagular filters in conv1 
@@ -52,8 +48,6 @@ class ConvLayer(nn.Module):
             _input = torch.nn.functional.pad(_input, ( 0, 0, 0,2)) # [left, right, top, bot]
 
         output = self.block(_input)
-        # NCHW to NHWC reshaping
-        output = torch.permute(output, (0, 2, 3, 1))
 
         """
         # Print Shape 
@@ -67,6 +61,9 @@ class ConvLayer(nn.Module):
             print(output.shape)
             print(output[0][0][0])
             print()
+            import pickle
+            with open('torch_output.p', 'wb') as f:
+                pickle.dump(output, f)
         return output
 
     def _get_padding(self, input_size, kernel_size, stride):
@@ -96,12 +93,9 @@ class LRNorm(nn.Module):
         self.printme = printme
 
     def forward(self, _input):
-        # NHWC to NCHW reshaping
-        _input = torch.permute(_input, (0, 3, 1, 2))
+
         output = self.block(_input)
-        # NCHW to NHWC reshaping
-        output = torch.permute(output, (0, 2, 3, 1))
-       
+
         """
         # Print Shape 
         print('lrnorm ' + str(self.lrnormcount) + ' layer:')
@@ -114,6 +108,7 @@ class LRNorm(nn.Module):
             print(output.shape)
             print(output[0][0][0])
             print()
+            
         return output
 
 class PoolLayer(nn.Module):
@@ -146,13 +141,10 @@ class PoolLayer(nn.Module):
         self.printme = printme
 
     def forward(self, _input):
-        # NHWC to NCHW reshaping
-        _input = torch.permute(_input, (0, 3, 1, 2))
+
         if self.layer1:
              _input = torch.nn.functional.pad(_input, ( 0, 0, 1,0)) # [left, right, top, bot]
         output = self.block(_input)
-        # NCHW to NHWC reshaping
-        output = torch.permute(output, (0, 2, 3, 1))
 
         """
         # Print Shape 
@@ -165,6 +157,7 @@ class PoolLayer(nn.Module):
             print('pool layer:')
             print(output.shape)
             print(output[0][0][0])
+            print(output[0][0][0].shape)
             print()
          
         return output
@@ -188,6 +181,7 @@ class FlattenPoolLayer(nn.Module):
         self.output_size = output_size
 
     def forward(self, _input):
+        _input = torch.permute(_input, (0, 2, 3, 1))  # Convert to TF axes before flattening
         return torch.reshape(_input, (-1, self.output_size))
 
 class FullyConnected(nn.Module):
