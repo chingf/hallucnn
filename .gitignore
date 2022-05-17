@@ -2,3 +2,7 @@ __pycache__
 *.swp
 .DS_Store
 *.pt
+data/*
+.ipynb_checkpoints/
+stimuli
+weights
