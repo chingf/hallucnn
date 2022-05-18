@@ -1,0 +1,25 @@
+# network name (default: "Network")
+name = "PBranchedNetwork_Conv1"
+
+# imports for prediction modules (mandatory if custom predictor modules are defined)
+imports = [
+"from torch.nn import Sequential, ReLU, ConvTranspose2d, Upsample",
+]
+
+# indicates utilization of automatic gradient scaling (default: false)
+gradient_scaling = true
+
+# to use shared or separate hyperparameters for PCoders (default: false)
+shared_hyperparameters = false
+
+# input size [channels, height, width] (mandatory)
+input_size = [1, 164, 400]
+
+# pcoders (defining [[pcoders]] for each PCoder is mandatory). Order is important.
+# module (mandatory): pytorch name of each module in the target network to be converted into an encoder
+# predictor (optional): the pytorch module for generating predictions. By default, it will be upsample+conv_transpose)
+# hyperparameters (optional): default value is {feedforward=0.3, feedback=0.3, pc=0.01}. If shared_hyperparameters=true, the values of the first PCoder will be used for all of them.
+
+[[pcoders]]
+module = "speech_branch.conv1.block[0]"
+
