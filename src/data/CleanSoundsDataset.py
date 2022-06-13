@@ -5,17 +5,21 @@ import h5py
 from torch.utils.data import Dataset, DataLoader
 
 class CleanSoundsDataset(Dataset):
-    """ Clean sounds dataset. """
+    """ Clean sounds dataset. SCALED BY 1000 """
 
-    def __init__(self, hdf_file, subset=None):
+    def __init__(self, hdf_file, subset=None, scaling=1000):
         self.hdf_file = hdf_file
+        self.scaling = scaling
         f = h5py.File(hdf_file, 'r')
-        self.data = torch.tensor(f['data']).reshape((-1, 164, 400))
+        self.data = torch.tensor(
+            np.array(f['data']).reshape((-1, 1, 164, 400))
+            )
         self.labels = torch.tensor(f['labels'])
         if subset is not None:
             self.data = self.data[:subset]
             self.labels = self.labels[:subset]
-        self.n_data, self.height, self.width = self.data.shape
+        self.data = self.data * self.scaling
+        self.n_data, self.n_channels, self.height, self.width = self.data.shape
 
     def __len__(self):
         return self.n_data

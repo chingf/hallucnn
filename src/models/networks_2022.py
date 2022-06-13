@@ -13,8 +13,9 @@ class BranchedNetwork(nn.Module):
     PyTorch implementation of CNN from Kell, Shook & McDermott 202? with word and genre branch.
     """
 
-    def __init__(self):
+    def __init__(self, track_encoder_representations=False):
         super(BranchedNetwork, self).__init__()
+        self.track_encoder_representations = track_encoder_representations
         self.rnorm_bias, self.rnorm_alpha, self.rnorm_beta = 1., 1e-3, 0.75
         self.n_labels_W = 531 ## NOTE: they're 0:587 but add one for the genre label
         self.n_labels_G = 42 ##NOTE: they're 0:41 but add one for the speech label 
@@ -48,7 +49,19 @@ class BranchedNetwork(nn.Module):
     def forward(self, _input):
         data_edge = self.layer_params_dict['data']['edge']
         _input = torch.reshape(_input, (-1, 1, data_edge[0], data_edge[1]))
-        speech_output = self.speech_branch(_input)
+        if not self.track_encoder_representations:
+            speech_output = self.speech_branch(_input)
+        else:
+            self.encoder_repr = {}
+            layer_input = _input
+            for layer_name, layer in self.speech_branch.named_modules():
+                if layer_name == '': continue
+                if '.block' in layer_name: continue
+                layer_output = layer(layer_input)
+                if 'conv' in layer_name:
+                    self.encoder_repr[layer_name] = layer_output.cpu().numpy().squeeze()
+                layer_input = layer_output
+            speech_output = layer_output
         genre_output = self.genre_branch(_input)
         return speech_output, genre_output
 
