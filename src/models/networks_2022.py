@@ -58,7 +58,7 @@ class BranchedNetwork(nn.Module):
                 if layer_name == '': continue
                 if '.block' in layer_name: continue
                 layer_output = layer(layer_input)
-                if 'conv' in layer_name:
+                if 'conv' in layer_name or 'fc6_W' in layer_name:
                     self.encoder_repr[layer_name] = layer_output.cpu().numpy().squeeze()
                 layer_input = layer_output
             speech_output = layer_output

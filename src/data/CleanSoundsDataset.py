@@ -5,7 +5,36 @@ import h5py
 from torch.utils.data import Dataset, DataLoader
 
 class CleanSoundsDataset(Dataset):
-    """ Clean sounds dataset. SCALED BY 1000 """
+    """
+    Merges TrainCleanSoundsDataset and PsychophysicsCleanSoundsDataset.
+    This is a really sloppy way to do this.
+    """
+
+    def __init__(self, train_dset, psycho_dset):
+        self.data = torch.vstack((train_dset.data, psycho_dset.data))
+        self.labels = torch.cat((train_dset.labels, psycho_dset.labels))
+        train_dset.data = None; psycho_dset.data = None # Free space
+        train_dset.labels = None; psycho_dset.labels = None
+        self.n_data, self.n_channels, self.height, self.width = self.data.shape
+        print(self.data.shape)
+        shuffle_idxs = np.arange(self.n_data)
+        np.random.shuffle(shuffle_idxs)
+        self.data = self.data[shuffle_idxs]
+        self.labels = self.labels[shuffle_idxs]
+
+    def __len__(self):
+        return self.n_data
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        return self.data[idx], self.labels[idx]
+  
+class TrainCleanSoundsDataset(Dataset):
+    """
+    Clean sounds dataset from WSJ, but excludes the psychophysics.
+    SCALED BY 1000
+    """
 
     def __init__(self, hdf_file, subset=None, scaling=1000):
         self.hdf_file = hdf_file
@@ -46,7 +75,7 @@ class PsychophysicsCleanSoundsDataset(Dataset):
         np.random.shuffle(shuffle_idxs)
         clean_in = clean_in[shuffle_idxs]
         labels = labels.squeeze()
-        self.labels = labels[shuffle_idxs]
+        self.labels = torch.tensor(labels[shuffle_idxs])
         self.data = torch.tensor(
             clean_in.reshape((n_samples, 1, 164, 400))
             )
