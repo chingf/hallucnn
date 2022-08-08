@@ -6,29 +6,37 @@ from torch.utils.data import Dataset, DataLoader
 
 class CleanSoundsDataset(Dataset):
     """
-    Merges TrainCleanSoundsDataset and PsychophysicsCleanSoundsDataset.
-    This is a really sloppy way to do this.
+    Clean sounds dataset from WSJ, but excludes the psychophysics.
     """
 
-    def __init__(self, train_dset, psycho_dset):
-        self.data = torch.vstack((train_dset.data, psycho_dset.data))
-        self.labels = torch.cat((train_dset.labels, psycho_dset.labels))
-        train_dset.data = None; psycho_dset.data = None # Free space
-        train_dset.labels = None; psycho_dset.labels = None
-        self.n_data, self.n_channels, self.height, self.width = self.data.shape
-        print(self.data.shape)
-        shuffle_idxs = np.arange(self.n_data)
-        np.random.shuffle(shuffle_idxs)
-        self.data = self.data[shuffle_idxs]
-        self.labels = self.labels[shuffle_idxs]
+    def __init__(self, hdf_file, subset = None, train = True):
+        self.hdf_file = hdf_file
+        self.train = train
+        self.f = h5py.File(hdf_file, 'r')
+        self.n_data, __ =  np.shape(self.f['data'])
+        
+        if subset is not None:
+            
+            if train: 
+                
+                self.n_data = int(self.n_data*subset)
+            else:
+                self.n_data = int(self.n_data * (1-subset))
+                self.start_ind = int(self.n_data * subset)
 
     def __len__(self):
         return self.n_data
 
     def __getitem__(self, idx):
+        
+        if not self.train:
+            idx = idx + self.start_ind # Adds offset for test set 
+        
         if torch.is_tensor(idx):
             idx = idx.tolist()
-        return self.data[idx], self.labels[idx]
+        item = np.array(self.f['data'][idx]).reshape((-1, 164, 400))
+        label = self.f['labels'][idx]
+        return torch.tensor(item), torch.tensor(label)
   
 class TrainCleanSoundsDataset(Dataset):
     """
