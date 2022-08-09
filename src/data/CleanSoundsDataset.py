@@ -36,7 +36,7 @@ class CleanSoundsDataset(Dataset):
             idx = idx.tolist()
         item = np.array(self.f['data'][idx]).reshape((-1, 164, 400))
         label = self.f['labels'][idx]
-        return torch.tensor(item), torch.tensor(label)
+        return torch.tensor(item), torch.tensor(label).type(torch.LongTensor)
   
 class TrainCleanSoundsDataset(Dataset):
     """
