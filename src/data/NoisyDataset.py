@@ -7,10 +7,29 @@ from torch.utils.data import Dataset, DataLoader
 
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
 
+class LargeNoisyDataset(Dataset):
+    ''' WSJ Training Utterances '''
+
+    def __init__(self, bg, snr, orig_dset='WSJ'):
+        hdf_file = f'{engram_dir}{bg}_{int(snr)}_fixed.hdf5'
+        label_key = f'{engram_dir}PsychophysicsWord2017W_999c6fc475be1e82e114ab9865aa5459e4fd329d.__META_key.npy'
+        self.label_key = np.load(label_key)
+        self.f = h5py.File(hdf_file, 'r')
+        self.n_data = 5000 #, __ =  np.shape(self.f['data'])
+        self.SCALING = 1000
+
+    def __len__(self):
+        return self.n_data
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        items = np.array(self.f['data'][idx]).reshape((-1, 164, 400))*self.SCALING
+        labels = np.array(self.f['label_indices'][idx])
+        return torch.tensor(items), torch.tensor(labels).type(torch.LongTensor)
+
 class NoisyDataset(Dataset):
-    """
-    Clean sounds dataset from WSJ, but excludes the psychophysics.
-    """
+    ''' WSJ Validation Utterances '''
 
     def __init__(self, bg, snr, orig_dset='WSJ'):
         fullnoisydata = FullNoisyDataset()
@@ -39,6 +58,7 @@ class NoisyDataset(Dataset):
         return torch.tensor(item), torch.tensor(label)
 
 class FullNoisyDataset():
+    ''' WSJ Validation Utterances '''
 
     def __init__(self):
         self._load_psychophysics_file()
@@ -127,3 +147,5 @@ class FullNoisyDataset():
         self.clean_in = np.array(cochleagrams)
         n_data = self.labels.size
         self.clean_in = self.clean_in[:n_data]
+
+

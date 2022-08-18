@@ -8,3 +8,8 @@ stimuli
 weights
 *.pyc
 *.p
+slurm*
+*.hdf5
+*.png
+*.npy
+*.wav

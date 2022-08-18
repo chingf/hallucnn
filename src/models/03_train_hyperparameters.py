@@ -15,30 +15,32 @@ from predify.utils.training import train_pcoders, eval_pcoders
 
 from networks_2022 import BranchedNetwork
 from data.CleanSoundsDataset import CleanSoundsDataset
-from data.NoisyDataset import NoisyDataset, FullNoisyDataset
+from data.NoisyDataset import NoisyDataset, FullNoisyDataset, LargeNoisyDataset
 
 task_number = int(sys.argv[1])
 
 # # Global configurations
 
+LR_SCALING = 0.01
+
 # Args
 task_args = []
-for SAME_PARAM in [True]: #, False]:
+for SAME_PARAM in [True, False]:
+    #for noise_types in [['pinkNoise']]:
     for noise_types in [['Babble8Spkr'], ['AudScene']]:
-        task_args.append((SAME_PARAM, noise_types))
+        for snr_levels in [[-9.], [-6.], [-3.]]: #,  [0.],  [3.]]:
+            task_args.append((SAME_PARAM, noise_types, snr_levels))
 
 # Main args
 task_number = task_number % len(task_args)
-SAME_PARAM, noise_types = task_args[task_number]
+SAME_PARAM, noise_types, snr_levels = task_args[task_number]
 
 # Dataset configuration
-snr_levels = [-9., -6., -3.,  0.,  3.]
 BATCH_SIZE = 10
 NUM_WORKERS = 2
 
-
 # Other training params
-EPOCH = 15
+EPOCH = 20
 FF_START = True             # to start from feedforward initialization
 MAX_TIMESTEP = 5
 
@@ -46,8 +48,7 @@ MAX_TIMESTEP = 5
 # Path names
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
 checkpoints_dir = f'{engram_dir}checkpoints/'
-tensorboard_dir = f'{engram_dir}tensorboard/'
-
+tensorboard_dir = f'{engram_dir}tensorboard/lr_{LR_SCALING}x/'
 
 # # Load network arguments
 
@@ -144,7 +145,7 @@ def train(net, epoch, dataloader, timesteps, loss_function, optimizer, writer=No
         optimizer.step()
         net.update_hyperparameters()
             
-        print(f"Training Epoch: {epoch} [{batch_index * 16 + len(images)}/{len(dataloader.dataset)}]\tLoss: {loss.item():0.4f}\tLR: {optimizer.param_groups[0]['lr']:0.6f}")
+        print(f"Training Epoch: {epoch} [{batch_index * BATCH_SIZE + len(images)}/{len(dataloader.dataset)}]\tLoss: {loss.item():0.4f}\tLR: {optimizer.param_groups[0]['lr']:0.6f}")
         for tt in range(timesteps+1):
             print(f'{ttloss[tt]:0.4f}\t', end='')
         print()
@@ -195,7 +196,7 @@ def train_and_eval(noise_type, snr_level):
         shuffle=False, drop_last=False, num_workers=NUM_WORKERS
         )
 
-    noisy_ds = NoisyDataset(bg=noise_type, snr=snr_level)
+    noisy_ds = LargeNoisyDataset(bg=noise_type, snr=snr_level)
     noise_loader = torch.utils.data.DataLoader(
         noisy_ds,  batch_size=BATCH_SIZE,
         shuffle=True, drop_last=False,
@@ -204,8 +205,8 @@ def train_and_eval(noise_type, snr_level):
 
     # Set up logs and network for training
     net_dir = f'hyper_{noise_type}_snr{snr_level}'
-    if FF_START:
-        net_dir += '_FFstart'
+    if not FF_START:
+        net_dir += '_randomInit'
     if SAME_PARAM:
         net_dir += '_shared'
 
@@ -239,8 +240,8 @@ def train_and_eval(noise_type, snr_level):
     hyperparams = [*pnet.get_hyperparameters()]
     if SAME_PARAM:
         optimizer = torch.optim.Adam([
-            {'params': hyperparams[:-1], 'lr':0.01},
-            {'params': hyperparams[-1:], 'lr':0.0001}], weight_decay=0.00001)
+            {'params': hyperparams[:-1], 'lr':0.01*LR_SCALING},
+            {'params': hyperparams[-1:], 'lr':0.0001*LR_SCALING}], weight_decay=0.00001)
     else:
         fffbmem_hp = []
         erm_hp = []
@@ -248,8 +249,8 @@ def train_and_eval(noise_type, snr_level):
             fffbmem_hp.extend(hyperparams[pc*4:pc*4+3])
             erm_hp.append(hyperparams[pc*4+3])
         optimizer = torch.optim.Adam([
-            {'params': fffbmem_hp, 'lr':0.01},
-            {'params': erm_hp, 'lr':0.0001}], weight_decay=0.00001)
+            {'params': fffbmem_hp, 'lr':0.01*LR_SCALING},
+            {'params': erm_hp, 'lr':0.0001*LR_SCALING}], weight_decay=0.00001)
 
     # Log initial hyperparameter and eval values
     log_hyper_parameters(pnet, 0, sumwriter, same_param=SAME_PARAM)
@@ -287,10 +288,10 @@ def train_and_eval(noise_type, snr_level):
 
 for noise_type in noise_types:
     for snr_level in snr_levels:
-        print("=====================")
-        print(f'{noise_type}, for SNR {snr_level}')
-        print("=====================")
-        train_and_eval(noise_type, snr_level)
-
+        for _ in range(3):
+            print("=====================")
+            print(f'{noise_type}, for SNR {snr_level}')
+            print("=====================")
+            train_and_eval(noise_type, snr_level)
 
 

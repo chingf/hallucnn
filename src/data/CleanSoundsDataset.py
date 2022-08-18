@@ -9,16 +9,16 @@ class CleanSoundsDataset(Dataset):
     Clean sounds dataset from WSJ, but excludes the psychophysics.
     """
 
-    def __init__(self, hdf_file, subset = None, train = True):
+    def __init__(self, hdf_file, subset=None, train=True, label_key='label_indices', scaling=1000):
         self.hdf_file = hdf_file
+        self.label_key = label_key
+        self.scaling = scaling
         self.train = train
         self.f = h5py.File(hdf_file, 'r')
         self.n_data, __ =  np.shape(self.f['data'])
         
         if subset is not None:
-            
             if train: 
-                
                 self.n_data = int(self.n_data*subset)
             else:
                 self.n_data = int(self.n_data * (1-subset))
@@ -34,8 +34,8 @@ class CleanSoundsDataset(Dataset):
         
         if torch.is_tensor(idx):
             idx = idx.tolist()
-        item = np.array(self.f['data'][idx]).reshape((-1, 164, 400))
-        label = self.f['labels'][idx]
+        item = np.array(self.f['data'][idx]).reshape((-1, 164, 400))*self.scaling
+        label = self.f[self.label_key][idx]
         return torch.tensor(item), torch.tensor(label).type(torch.LongTensor)
   
 class TrainCleanSoundsDataset(Dataset):

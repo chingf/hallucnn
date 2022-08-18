@@ -181,7 +181,7 @@ class FlattenPoolLayer(nn.Module):
         self.output_size = output_size
 
     def forward(self, _input):
-        _input = torch.permute(_input, (0, 2, 3, 1))  # Convert to TF axes before flattening
+        _input = _input.permute((0, 2, 3, 1)) # Convert to TF axes before flattening
         return torch.reshape(_input, (-1, self.output_size))
 
 class FullyConnected(nn.Module):
