@@ -13,3 +13,4 @@ slurm*
 *.png
 *.npy
 *.wav
+*.svg

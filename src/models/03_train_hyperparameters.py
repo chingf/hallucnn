@@ -21,26 +21,24 @@ task_number = int(sys.argv[1])
 
 # # Global configurations
 
-LR_SCALING = 0.01
-
 # Args
 task_args = []
-for SAME_PARAM in [True, False]:
-    #for noise_types in [['pinkNoise']]:
-    for noise_types in [['Babble8Spkr'], ['AudScene']]:
-        for snr_levels in [[-9.], [-6.], [-3.]]: #,  [0.],  [3.]]:
-            task_args.append((SAME_PARAM, noise_types, snr_levels))
+for noise_types in [['AudScene'], ['Babble8Spkr'], ['pinkNoise']]:
+    for snr_levels in [[-9.], [-6.], [-3.], [0.], [3.]]:
+        task_args.append((noise_types, snr_levels))
 
 # Main args
 task_number = task_number % len(task_args)
-SAME_PARAM, noise_types, snr_levels = task_args[task_number]
+noise_types, snr_levels = task_args[task_number]
+LR_SCALING = 0.01
+SAME_PARAM = False
 
 # Dataset configuration
 BATCH_SIZE = 10
 NUM_WORKERS = 2
 
 # Other training params
-EPOCH = 20
+EPOCH = 100
 FF_START = True             # to start from feedforward initialization
 MAX_TIMESTEP = 5
 
@@ -48,19 +46,19 @@ MAX_TIMESTEP = 5
 # Path names
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
 checkpoints_dir = f'{engram_dir}checkpoints/'
-tensorboard_dir = f'{engram_dir}tensorboard/lr_{LR_SCALING}x/'
+tensorboard_dir = f'{engram_dir}tensorboard/randomInit_lr_{LR_SCALING}x/'
 
 # # Load network arguments
 
 if SAME_PARAM:
     from pbranchednetwork_shared import PBranchedNetwork_SharedSameHP
     PNetClass = PBranchedNetwork_SharedSameHP
-    pnet_name = 'all'
+    pnet_name = 'pnet'
     fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-shared-50-regular.pth'
 else:
     from pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
     PNetClass = PBranchedNetwork_AllSeparateHP
-    pnet_name = 'all'
+    pnet_name = 'pnet'
     fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-50-regular.pth'
 fb_state_dict = torch.load(fb_state_dict_path)
 
@@ -78,6 +76,17 @@ def load_pnet(
         )
 
     pnet.load_state_dict(state_dict)
+    hyperparams = []
+    for i in range(1, 6):
+        ffm = np.random.uniform()
+        fbm = np.random.uniform(high=1.-ffm)
+        erm = np.random.uniform()*0.1
+        hps = {}
+        hps['ffm'] = ff_multiplier
+        hps['fbm'] = fb_multiplier
+        hps['erm'] = er_multiplier
+        hyperparams.append(hps)
+    pnet.set_hyperparameters(hyperparams)
     pnet.eval()
     pnet.to(device)
     return pnet
@@ -229,9 +238,12 @@ def train_and_eval(noise_type, snr_level):
     # Load PNet for hyperparameter optimization
     net = BranchedNetwork()
     net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
+    ffm = np.random.uniform()
+    fbm = np.random.uniform()
+    erm = np.random.uniform()*0.1
     pnet = load_pnet(
         net, fb_state_dict, build_graph=True, random_init=(not FF_START),
-        ff_multiplier=0.33, fb_multiplier=0.33, er_multiplier=0.0,
+        ff_multiplier=ffm, fb_multiplier=fbm, er_multiplier=erm,
         same_param=SAME_PARAM, device='cuda:0'
         )
 
@@ -278,19 +290,15 @@ def train_and_eval(noise_type, snr_level):
             MAX_TIMESTEP, loss_function,
             writer=sumwriter, tag='Noisy'
             )
-    # evaluate(
-    #     pnet, epoch, clean_loader,
-    #     timesteps=MAX_TIMESTEP, writer=sumwriter,
-    #     tag='Clean'
-    #     )
     sumwriter.close()
 
 
 for noise_type in noise_types:
     for snr_level in snr_levels:
-        for _ in range(3):
+        for _ in range(5):
             print("=====================")
             print(f'{noise_type}, for SNR {snr_level}')
+            print(tensorboard_dir)
             print("=====================")
             train_and_eval(noise_type, snr_level)
 
