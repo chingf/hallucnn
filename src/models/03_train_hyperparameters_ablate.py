@@ -17,6 +17,8 @@ from networks_2022 import BranchedNetwork
 from data.CleanSoundsDataset import CleanSoundsDataset
 from data.NoisyDataset import NoisyDataset, FullNoisyDataset, LargeNoisyDataset
 
+# IMPLEMENTED JUST FOR ERROR MULTIPLIER RIGHT NOW
+
 task_number = int(sys.argv[1])
 
 # # Global configurations
@@ -46,7 +48,7 @@ MAX_TIMESTEP = 5
 # Path names
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
 checkpoints_dir = f'{engram_dir}checkpoints/'
-tensorboard_dir = f'{engram_dir}tensorboard/randomInit_lr_{LR_SCALING}x/'
+tensorboard_dir = f'{engram_dir}tensorboard/erm_ablation/'
 
 # # Load network arguments
 
@@ -237,7 +239,7 @@ def train_and_eval(noise_type, snr_level):
     net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
     ffm = np.random.uniform()
     fbm = np.random.uniform(high=1.-ffm)
-    erm = np.random.uniform()*0.1
+    erm = 0. #np.random.uniform()*0.1
     pnet = load_pnet(
         net, fb_state_dict, build_graph=True, random_init=(not FF_START),
         ff_multiplier=ffm, fb_multiplier=fbm, er_multiplier=erm,
@@ -249,17 +251,19 @@ def train_and_eval(noise_type, snr_level):
     hyperparams = [*pnet.get_hyperparameters()]
     if SAME_PARAM:
         optimizer = torch.optim.Adam([
-            {'params': hyperparams[:-1], 'lr':0.01*LR_SCALING},
-            {'params': hyperparams[-1:], 'lr':0.0001*LR_SCALING}], weight_decay=0.00001)
+            {'params': hyperparams[:-1], 'lr':0.01*LR_SCALING}
+            #{'params': hyperparams[-1:], 'lr':0.0001*LR_SCALING}
+            ], weight_decay=0.00001)
     else:
         fffbmem_hp = []
-        erm_hp = []
+        #erm_hp = []
         for pc in range(pnet.number_of_pcoders):
             fffbmem_hp.extend(hyperparams[pc*4:pc*4+3])
-            erm_hp.append(hyperparams[pc*4+3])
+            #erm_hp.append(hyperparams[pc*4+3])
         optimizer = torch.optim.Adam([
-            {'params': fffbmem_hp, 'lr':0.01*LR_SCALING},
-            {'params': erm_hp, 'lr':0.0001*LR_SCALING}], weight_decay=0.00001)
+            {'params': fffbmem_hp, 'lr':0.01*LR_SCALING}
+            #{'params': erm_hp, 'lr':0.0001*LR_SCALING}
+            ], weight_decay=0.00001)
 
     # Log initial hyperparameter and eval values
     log_hyper_parameters(pnet, 0, sumwriter, same_param=SAME_PARAM)
@@ -292,18 +296,11 @@ def train_and_eval(noise_type, snr_level):
 
 for noise_type in noise_types:
     for snr_level in snr_levels:
-        net_dir = f'hyper_{noise_type}_snr{snr_level}'
-        if not FF_START:
-            net_dir += '_randomInit'
-        if SAME_PARAM:
-            net_dir += '_shared'
-        net_dir = f'{tensorboard_dir}{net_dir}'
-        n_tboards = len(os.listdir(net_dir))
-        n_iters = max(0, 10-n_tboards)
-        for _ in range(n_iters):
+        for _ in range(5):
             print("=====================")
             print(f'{noise_type}, for SNR {snr_level}')
             print(tensorboard_dir)
             print("=====================")
             train_and_eval(noise_type, snr_level)
+
 
