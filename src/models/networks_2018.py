@@ -6,7 +6,7 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-import layers
+from models import layers
 
 class BranchedNetwork(nn.Module):
     """
