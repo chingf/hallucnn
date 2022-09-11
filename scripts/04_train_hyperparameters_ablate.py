@@ -271,7 +271,7 @@ def train_and_eval(noise_type, snr_level):
                 ffmem_hp.extend([hyperparams[pc*4], hyperparams[pc*4+2]])
                 erm_hp.append(hyperparams[pc*4+3])
             optimizer = torch.optim.Adam([
-                {'params': ffmem_hp, 'lr':0.01*LR_SCALING}
+                {'params': ffmem_hp, 'lr':0.01*LR_SCALING},
                 {'params': erm_hp, 'lr':0.0001*LR_SCALING}
                 ], weight_decay=0.00001)
 

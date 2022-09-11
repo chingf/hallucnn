@@ -7,9 +7,9 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=chingfang17@gmail.com
-#SBATCH --array=0-14
+#SBATCH --array=1-14
 
 source ~/.bashrc
 source activate hcnn
-python 03_train_hyperparameters_ablate.py $SLURM_ARRAY_TASK_ID
+python 04_train_hyperparameters_ablate.py $SLURM_ARRAY_TASK_ID fbm
 
