@@ -24,10 +24,14 @@ if (ablation != 'erm') and (ablation != 'fbm'):
 # # Global configurations
 
 # Args
-task_args = []
-for noise_types in [['AudScene'], ['Babble8Spkr'], ['pinkNoise']]:
-    for snr_levels in [[-9.], [-6.], [-3.], [0.], [3.]]:
-        task_args.append((noise_types, snr_levels))
+#task_args = []
+#for noise_types in [['AudScene'], ['Babble8Spkr'], ['pinkNoise']]:
+#    for snr_levels in [[-9.], [-6.], [-3.], [0.], [3.]]:
+#        task_args.append((noise_types, snr_levels))
+task_args = [
+    (['Babble8Spkr'], [-9.]),
+    (['pinkNoise'], [3.])
+    ]
 
 # Main args
 task_number = task_number % len(task_args)
@@ -306,7 +310,7 @@ def train_and_eval(noise_type, snr_level):
 
 for noise_type in noise_types:
     for snr_level in snr_levels:
-        for _ in range(5):
+        for _ in range(3):
             print("=====================")
             print(f'{noise_type}, for SNR {snr_level}')
             print(tensorboard_dir)

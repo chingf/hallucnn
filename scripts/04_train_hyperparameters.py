@@ -12,10 +12,12 @@ from torch.utils.data import Subset
 from predify.utils.training import train_pcoders, eval_pcoders
 
 from models.networks_2022 import BranchedNetwork
-from data.CleanSoundsDataset import CleanSoundsDataset
 from data.NoisyDataset import NoisyDataset, FullNoisyDataset, LargeNoisyDataset
 
 task_number = int(sys.argv[1])
+pnet_name = str(sys.argv[2])
+tensorboard_pnet_name = str(sys.argv[3])
+max_iters = int(sys.argv[4])
 
 # # Global configurations
 
@@ -44,19 +46,17 @@ MAX_TIMESTEP = 5
 # Path names
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
 checkpoints_dir = f'{engram_dir}checkpoints/'
-tensorboard_dir = f'{engram_dir}tensorboard/randomInit_lr_{LR_SCALING}x/'
+tensorboard_dir = f'{engram_dir}tensorboard/randomInit_{tensorboard_pnet_name}/'
 
 # # Load network arguments
 
 if SAME_PARAM:
     from models.pbranchednetwork_shared import PBranchedNetwork_SharedSameHP
     PNetClass = PBranchedNetwork_SharedSameHP
-    pnet_name = 'pnet'
     fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-shared-50-regular.pth'
 else:
     from models.pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
     PNetClass = PBranchedNetwork_AllSeparateHP
-    pnet_name = 'pnet'
     fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-50-regular.pth'
 fb_state_dict = torch.load(fb_state_dict_path)
 
@@ -192,14 +192,7 @@ def log_hyper_parameters(net, epoch, sumwriter, same_param=True):
 
 
 def train_and_eval(noise_type, snr_level):
-    # Load clean and noisy data
-    clean_ds_path = f'{engram_dir}training_dataset_random_order.hdf5'
-    clean_ds = CleanSoundsDataset(clean_ds_path)
-    clean_loader = torch.utils.data.DataLoader(
-        clean_ds,  batch_size=BATCH_SIZE,
-        shuffle=False, drop_last=False, num_workers=NUM_WORKERS
-        )
-
+    # Load noisy data
     noisy_ds = LargeNoisyDataset(bg=noise_type, snr=snr_level)
     noise_loader = torch.utils.data.DataLoader(
         noisy_ds,  batch_size=BATCH_SIZE,
@@ -235,7 +228,7 @@ def train_and_eval(noise_type, snr_level):
     net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
     ffm = np.random.uniform()
     fbm = np.random.uniform(high=1.-ffm)
-    erm = np.random.uniform()*0.1
+    erm = np.random.uniform()#*0.1
     pnet = load_pnet(
         net, fb_state_dict, build_graph=True, random_init=(not FF_START),
         ff_multiplier=ffm, fb_multiplier=fbm, er_multiplier=erm,
@@ -296,8 +289,9 @@ for noise_type in noise_types:
         if SAME_PARAM:
             net_dir += '_shared'
         net_dir = f'{tensorboard_dir}{net_dir}'
+        os.makedirs(net_dir, exist_ok=True)
         n_tboards = len(os.listdir(net_dir))
-        n_iters = max(0, 10-n_tboards)
+        n_iters = max(0, max_iters-n_tboards)
         for _ in range(n_iters):
             print("=====================")
             print(f'{noise_type}, for SNR {snr_level}')

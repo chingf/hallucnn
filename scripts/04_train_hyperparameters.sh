@@ -11,5 +11,5 @@
 
 source ~/.bashrc
 source activate hcnn
-python 03_train_hyperparameters.py $SLURM_ARRAY_TASK_ID 
+python 04_train_hyperparameters.py $SLURM_ARRAY_TASK_ID pnet pnet_erm_uniform 4
 

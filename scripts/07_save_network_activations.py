@@ -25,6 +25,10 @@ from data.NoisyDataset import NoisyDataset, FullNoisyDataset
 
 # Batch params
 task_number = int(sys.argv[1])
+activations_string = str(sys.argv[2])
+tf_string = str(sys.argv[3])
+
+# ARG LIST
 task_args = []
 for snrs in [[-9.0], [-6.0], [-3.0], [0.0], [3.0]]:
     for bgs in [['Babble8Spkr'], ['AudScene'], ['pinkNoise']]:
@@ -47,10 +51,9 @@ tensorboard_dir = f'{engram_dir}tensorboard/'
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print(f'Device: {DEVICE}')
 
-# MAIN PARAMETERS (WHICH MODELS?)
-activations_dir = f'{engram_dir}activations_erm_ablation/'
-main_tf_dir = f'{tensorboard_dir}erm_ablation/'
-
+# WHICH MODELS?
+activations_dir = f'{engram_dir}{activations_string}/'
+main_tf_dir = f'{tensorboard_dir}{tf_string}/'
 
 # # Helper functions to load network
 
@@ -191,6 +194,7 @@ def save_activations(pnet, dset, hdf5_path):
 for bg in bgs:
     for snr in snrs:
         tf_dir = f'{main_tf_dir}hyper_{bg}_snr{snr}/'
+        if not os.path.isdir(tf_dir): continue
         activ_dir = f'{activations_dir}{bg}_snr{int(snr)}/'
         os.makedirs(activ_dir, exist_ok=True)
         for tf_file in os.listdir(tf_dir):
