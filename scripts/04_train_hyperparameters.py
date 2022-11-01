@@ -16,8 +16,9 @@ from data.NoisyDataset import NoisyDataset, FullNoisyDataset, LargeNoisyDataset
 
 task_number = int(sys.argv[1])
 pnet_name = str(sys.argv[2])
-tensorboard_pnet_name = str(sys.argv[3])
-max_iters = int(sys.argv[4])
+pnet_chckpt = int(sys.argv[3])
+tensorboard_pnet_name = str(sys.argv[4])
+max_iters = int(sys.argv[5])
 
 # # Global configurations
 
@@ -53,11 +54,11 @@ tensorboard_dir = f'{engram_dir}tensorboard/randomInit_{tensorboard_pnet_name}/'
 if SAME_PARAM:
     from models.pbranchednetwork_shared import PBranchedNetwork_SharedSameHP
     PNetClass = PBranchedNetwork_SharedSameHP
-    fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-shared-50-regular.pth'
+    fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-shared-{pnet_chckpt}-regular.pth'
 else:
     from models.pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
     PNetClass = PBranchedNetwork_AllSeparateHP
-    fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-50-regular.pth'
+    fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-{pnet_chckpt}-regular.pth'
 fb_state_dict = torch.load(fb_state_dict_path)
 
 

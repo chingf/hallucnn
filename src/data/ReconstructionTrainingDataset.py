@@ -94,4 +94,39 @@ class NoisySoundsDataset(Dataset):
         item = np.array(self.f['data'][new_idx]).reshape((-1, 164, 400))*self.scaling
         label = self.f[self.label_key][new_idx]
         return torch.tensor(item), torch.tensor(label).type(torch.LongTensor)
-  
+
+class GammaNoiseDataset(Dataset):
+    """
+    Gamma-distributed cochleagrams. Default args are measured from distribution
+    of values from the CleanSoundsDataset. Specifically, they are generated via
+    scipy.stats.gamma.rvs(3.825, -6.595, 37.200).
+    HDF_FILE is typically: {engram_dir}gammaNoise_reconstruction_training_set
+    """
+
+    def __init__(self, hdf_file, subset=None, train=True, label_key='labels'):
+        self.hdf_file = hdf_file
+        self.train = train
+        self.f = h5py.File(hdf_file, 'r')
+        self.label_key = label_key
+        self.n_data, _, _ =  np.shape(self.f['data'])
+        
+        if subset is not None:
+            if train: 
+                self.n_data = int(self.n_data*subset)
+            else:
+                self.n_data = int(self.n_data * (1-subset))
+                self.start_ind = int(self.n_data * subset)
+
+    def __len__(self):
+        return self.n_data
+
+    def __getitem__(self, idx):
+        
+        if not self.train:
+            idx = idx + self.start_ind # Adds offset for test set 
+        
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        item = np.array(self.f['data'][idx]).reshape((-1, 164, 400))
+        label = self.f[self.label_key][idx]
+        return torch.tensor(item), torch.tensor(label).type(torch.LongTensor)
