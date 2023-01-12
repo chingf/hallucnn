@@ -29,7 +29,12 @@ class LargeNoisyDataset(Dataset):
         return torch.tensor(items), torch.tensor(labels).type(torch.LongTensor)
 
 class NoisyDataset(Dataset):
-    ''' WSJ Validation Utterances '''
+    '''
+    WSJ Validation Utterances. Wrapper around FullNoisyDataset to allow for
+    selection of subsets. Options include:
+    bgs = ['pinkNoise' 'AudScene', 'Babble8Spkr']
+    snrs = [-9.0, -6.0, -3.0, 0.0, 3.0]
+    '''
 
     def __init__(self, bg, snr, orig_dset='WSJ'):
         fullnoisydata = FullNoisyDataset()
