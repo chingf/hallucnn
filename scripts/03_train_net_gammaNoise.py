@@ -14,42 +14,39 @@ from data.ReconstructionTrainingDataset import NoisySoundsDataset
 from data.ReconstructionTrainingDataset import GammaNoiseDataset
 from models.pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
 
-task_number = int(sys.argv[1])
+# load user-defined parameters
+pnet_name = str(sys.argv[1])
+load_pnet_name = str(sys.argv[2])
+load_pnet_chckpt = int(sys.argv[3])
+NUM_EPOCHS = int(sys.argv[4])
 
-# Args
-task_args = [
-    ('gammaStripeNoise_reconstruction_training_set', 'gammaStripeNoise'),
-    ('gammaNoise_reconstruction_training_set', 'gammaNoise')
-    ]
-
-# Set up dataset parameters
-_train_datafile, _train_name = task_args[task_number]
-pnet_name = f'pnet_{_train_name}'
+# Set up PNet and dataset parameters
+_train_datafile = 'gammaNoise_reconstruction_training_set'
 SoundsDataset = GammaNoiseDataset
 dset_kwargs = {}
-
-# Set up PNet parameters
 PNetClass = PBranchedNetwork_AllSeparateHP
-
-# Declare parameters
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print(f'Device: {DEVICE}')
 BATCH_SIZE = 50
 NUM_WORKERS = 2
 PIN_MEMORY = True
-NUM_EPOCHS = 70
 lr = 1E-5
 
 # Make directories
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
-checkpoints_dir = f'{engram_dir}checkpoints/'
-tensorboard_dir = f'{engram_dir}tensorboard/'
+checkpoints_dir = f'{engram_dir}1_checkpoints/'
+tensorboard_dir = f'{engram_dir}1_tensorboard/'
 train_datafile = f'{engram_dir}{_train_datafile}.hdf5'
 
 # Set up nets and optimizer
 net = BranchedNetwork()
 net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
 pnet = PNetClass(net, build_graph=True)
+if load_pnet_chckpt > 0:
+    print(f'LOADING network {load_pnet_name}-{load_pnet_chckpt}')
+    pnet.load_state_dict(torch.load(
+        f'{checkpoints_dir}/{load_pnet_name}/{load_pnet_name}-{load_pnet_chckpt}-regular.pth'
+        ))
 pnet.eval()
 pnet.to(DEVICE)
 optimizer = torch.optim.Adam([

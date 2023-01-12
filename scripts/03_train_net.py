@@ -20,9 +20,9 @@ load_pnet_chckpt = int(sys.argv[3])
 NUM_EPOCHS = int(sys.argv[4])
 
 # Set up PNet and dataset parameters
-_train_datafile = 'hyperparameter_pooled_training_dataset_random_order_noNulls'
-SoundsDataset = NoisySoundsDataset
-dset_kwargs = {'snr': 'neg9'}
+_train_datafile = 'clean_reconstruction_training_set'
+SoundsDataset = CleanSoundsDataset
+dset_kwargs = {}
 PNetClass = PBranchedNetwork_AllSeparateHP
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print(f'Device: {DEVICE}')

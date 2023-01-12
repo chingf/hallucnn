@@ -46,8 +46,8 @@ MAX_TIMESTEP = 5
 
 # Path names
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
-checkpoints_dir = f'{engram_dir}checkpoints/'
-tensorboard_dir = f'{engram_dir}tensorboard/randomInit_{tensorboard_pnet_name}/'
+checkpoints_dir = f'{engram_dir}1_checkpoints/'
+tensorboard_dir = f'{engram_dir}2_hyperp/{tensorboard_pnet_name}/'
 
 # # Load network arguments
 
@@ -229,7 +229,7 @@ def train_and_eval(noise_type, snr_level):
     net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
     ffm = np.random.uniform()
     fbm = np.random.uniform(high=1.-ffm)
-    erm = np.random.uniform()#*0.1
+    erm = np.random.uniform()*0.1
     pnet = load_pnet(
         net, fb_state_dict, build_graph=True, random_init=(not FF_START),
         ff_multiplier=ffm, fb_multiplier=fbm, er_multiplier=erm,

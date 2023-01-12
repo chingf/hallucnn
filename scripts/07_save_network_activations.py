@@ -26,7 +26,9 @@ from data.NoisyDataset import NoisyDataset, FullNoisyDataset
 # Batch params
 task_number = int(sys.argv[1])
 activations_string = str(sys.argv[2])
-tf_string = str(sys.argv[3])
+pnet_name = str(sys.argv[3]) #'pnet'
+chckpt = int(sys.argv[4]) #50
+tf_string = str(sys.argv[5])
 
 # ARG LIST
 task_args = []
@@ -39,21 +41,19 @@ snrs, bgs = task_args[task_number]
 # PNET PARAMETERS
 from models.pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
 PNetClass = PBranchedNetwork_AllSeparateHP
-pnet_name = 'pnet'
-chckpt = 50
 n_timesteps = 5
 layers = ['conv1', 'conv2', 'conv3', 'conv4_W', 'conv5_W', 'fc6_W']
 
 # # Paths to relevant directories
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
-checkpoints_dir = f'{engram_dir}checkpoints/'
-tensorboard_dir = f'{engram_dir}tensorboard/'
+checkpoints_dir = f'{engram_dir}1_checkpoints/'
+hyp_dir = f'{engram_dir}2_hyperp/'
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print(f'Device: {DEVICE}')
 
 # WHICH MODELS?
-activations_dir = f'{engram_dir}{activations_string}/'
-main_tf_dir = f'{tensorboard_dir}{tf_string}/'
+activations_dir = f'{engram_dir}3_activations/{activations_string}/'
+main_tf_dir = f'{hyp_dir}{tf_string}/'
 
 # # Helper functions to load network
 
