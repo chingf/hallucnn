@@ -26,8 +26,8 @@ from data.NoisyDataset import NoisyDataset, FullNoisyDataset
 # Batch params
 task_number = int(sys.argv[1])
 activations_string = str(sys.argv[2])
-pnet_name = str(sys.argv[3]) #'pnet'
-chckpt = int(sys.argv[4]) #50
+pnet_name = str(sys.argv[3])
+chckpt = int(sys.argv[4])
 tf_string = str(sys.argv[5])
 
 # ARG LIST
@@ -180,6 +180,8 @@ def save_activations(pnet, dset, hdf5_path):
             clean_in = torch.tensor(
                 dset.clean_in[idx].reshape((1, 1, 164, 400))
                 ).to(DEVICE)
+            clean_in = clean_in.to(DEVICE)
+            activations, logits, output = run_pnet(pnet, clean_in)
             data_dict['clean_correct'][idx] = label == output[0]
             for timestep in range(n_timesteps):
                 for layer in layers:
