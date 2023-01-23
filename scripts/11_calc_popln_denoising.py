@@ -22,12 +22,6 @@ from data.NoisyDataset import NoisyDataset, FullNoisyDataset
 import warnings
 warnings.filterwarnings("ignore")
 
-exp = 'pnet'
-engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
-activations_dir = f'{engram_dir}3_activations/{exp}/'
-pickles_dir = f'{engram_dir}pickles/{exp}_denoising/'
-os.makedirs(pickles_dir, exist_ok=True)
-
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print(f'Device: {DEVICE}')
 
@@ -94,22 +88,32 @@ def eval_correlations(results, dist_func, accs):
         }
     return results
 
-file_prefix = 'pearsonr'
-dist_func = pearsonr_sim
+# Batch script input
+task_number = int(sys.argv[1])
+exp = sys.argv[2]
 
+# Argument List
 bgs = ['pinkNoise', 'AudScene', 'Babble8Spkr']
 snrs = [-9., -6., -3., 0., 3.]
 args = []
 for _bg in bgs:
     for _snr in snrs:
         args.append((_bg, _snr))
-task_number = int(sys.argv[1])
-bg, snr = args[task_number]
 
+# Set up variables and directories
+file_prefix = 'pearsonr'
+dist_func = pearsonr_sim
+engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
+activations_dir = f'{engram_dir}3_activations/{exp}/'
+pickles_dir = f'{engram_dir}pickles/{exp}_denoising/'
+os.makedirs(pickles_dir, exist_ok=True)
+bg, snr = args[task_number]
 bg_snr_activations_dir = f'{activations_dir}{bg}_snr{int(snr)}/'
 results = {
     'popln_shuffle': [], 'popln_timestep': [], 'popln_sim': [],
     'popln_layer': [], 'valid_score': []}
+
+# Run correlations function
 for hdf5_file in os.listdir(bg_snr_activations_dir):
     hdf5_path = f'{bg_snr_activations_dir}{hdf5_file}'
     hdf5_data = h5py.File(hdf5_path, 'r')
