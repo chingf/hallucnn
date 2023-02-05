@@ -116,7 +116,6 @@ def evaluate(net, epoch, dataloader, timesteps, loss_function, writer=None, tag=
     print()
 
 
-
 def train(net, epoch, dataloader, timesteps, loss_function, optimizer, writer=None):
     for batch_index, (images, labels) in enumerate(dataloader):
         net.reset()
@@ -152,7 +151,6 @@ def train(net, epoch, dataloader, timesteps, loss_function, optimizer, writer=No
                 f"TrainingLoss/CE", loss.item(),
                 (epoch-1)*len(dataloader) + batch_index
                 )
-
 
 
 def log_hyper_parameters(net, epoch, sumwriter, same_param=True):
@@ -264,10 +262,8 @@ def train_and_eval():
     # Run epochs
     for epoch in range(1, EPOCH+1):
         train(
-            pnet, epoch, noise_loader,
-            MAX_TIMESTEP, loss_function, optimizer,
-            writer=sumwriter
-            )
+            pnet, epoch, noise_loader, MAX_TIMESTEP,
+            loss_function, optimizer, writer=sumwriter)
         log_hyper_parameters(pnet, epoch, sumwriter, same_param=SAME_PARAM)
         hps = pnet.get_hyperparameters_values()
         print(hps)

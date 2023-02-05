@@ -115,9 +115,6 @@ class NoisySoundsDataset(Dataset):
 
         # Random order
         if random_order:
-            if subset is not None:
-                import warnings
-                warnings.warn("Random order dataset not tested for subsets!")
             self.new_indices = np.arange(self.n_data)
             np.random.shuffle(self.new_indices)
 
@@ -128,8 +125,6 @@ class NoisySoundsDataset(Dataset):
         
         if not self.train:
             idx = idx + self.start_ind # Adds offset for test set 
-            if self.random_order:
-                idx = self.new_indices[idx]
         
         if torch.is_tensor(idx):
             idx = idx.tolist()

@@ -61,10 +61,10 @@ def get_hyperparams(tf_filepath, bg, snr):
     hyperparams = []
     ea = event_accumulator.EventAccumulator(tf_filepath)
     ea.Reload()
-    try:
-        _eval_acc = ea.Scalars(f'NoisyPerf/Epoch#80')[0].value
-    except:
-        return None
+    #try:
+    #    _eval_acc = ea.Scalars(f'NoisyPerf/Epoch#80')[0].value
+    #except:
+    #    return None
     for i in range(1, 6):
         hps = {}
         ffm = ea.Scalars(f'Hyperparam/pcoder{i}_feedforward')[-1].value
