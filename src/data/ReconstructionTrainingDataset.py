@@ -24,10 +24,16 @@ class CleanSoundsDataset(Dataset):
         self.f = h5py.File(hdf_file, 'r')
         self.n_data, __ =  np.shape(self.f['data'])
 
-        if self.cgram_shuffle == 1:
+        if self.cgram_shuffle == 1: # preserves freq info, not temporal info
             self.shuffle_idxs = np.zeros((self.n_data, 164), dtype=int)
             for i in range(self.n_data):
                 indices = np.arange(164, dtype=int)
+                np.random.shuffle(indices)
+                self.shuffle_idxs[i] = indices
+        elif self.cgram_shuffle == 2: # preserves temporal info, not freq info
+            self.shuffle_idxs = np.zeros((self.n_data, 400), dtype=int)
+            for i in range(self.n_data):
+                indices = np.arange(400, dtype=int)
                 np.random.shuffle(indices)
                 self.shuffle_idxs[i] = indices
         
@@ -56,6 +62,13 @@ class CleanSoundsDataset(Dataset):
             else:
                 for batch in range(shuffle_idxs.shape[0]):
                     item[batch] = item[batch, shuffle_idxs[batch]]
+        elif self.cgram_shuffle == 2:
+            shuffle_idxs = self.shuffle_idxs[idx]
+            if item.shape[0] == 1:
+                item = item[:, :, shuffle_idxs]
+            else:
+                for batch in range(shuffle_idxs.shape[0]):
+                    item[batch] = item[batch, :, shuffle_idxs[batch]]
         label = self.f[self.label_key][idx]
         return torch.tensor(item), torch.tensor(label).type(torch.LongTensor)
  
@@ -70,7 +83,7 @@ class NoisySoundsDataset(Dataset):
     def __init__(
         self, hdf_file, subset=None, train=True,
         label_key='label_indices', scaling=1000,
-        bg=None, snr=None
+        bg=None, snr=None, random_order=True
         ):
 
         self.hdf_file = hdf_file
@@ -78,6 +91,7 @@ class NoisySoundsDataset(Dataset):
         self.scaling = scaling
         self.train = train
         self.f = h5py.File(hdf_file, 'r')
+        self.random_order = random_order
 
         # Subset by background noise or SNR as desired
         path_to_wav = np.array(self.f['path_to_wav']).astype('U')
@@ -99,6 +113,14 @@ class NoisySoundsDataset(Dataset):
                 self.n_data = int(self.n_data * (1-subset))
                 self.start_ind = int(self.n_data * subset)
 
+        # Random order
+        if random_order:
+            if subset is not None:
+                import warnings
+                warnings.warn("Random order dataset not tested for subsets!")
+            self.new_indices = np.arange(self.n_data)
+            np.random.shuffle(self.new_indices)
+
     def __len__(self):
         return self.n_data
 
@@ -106,9 +128,13 @@ class NoisySoundsDataset(Dataset):
         
         if not self.train:
             idx = idx + self.start_ind # Adds offset for test set 
+            if self.random_order:
+                idx = self.new_indices[idx]
         
         if torch.is_tensor(idx):
             idx = idx.tolist()
+            if self.random_order:
+                idx = [self.new_indices[i] for i in idx]
 
         new_idx = self.valid_index[idx] 
         item = np.array(self.f['data'][new_idx]).reshape((-1, 164, 400))*self.scaling
