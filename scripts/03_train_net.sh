@@ -11,5 +11,4 @@
 
 source ~/.bashrc
 source activate hcnn
-python 03_train_net_cgram_shuffle.py pnet_cgram_shuffle_pt2 pnet_cgram_shuffle 1240 700
-
+python 03_train_net_cgram_shuffle.py pnet_freq_shuffle_pt2 pnet_freq_shuffle 1180 1000

@@ -22,7 +22,7 @@ NUM_EPOCHS = int(sys.argv[4])
 # Set up PNet and dataset parameters
 _train_datafile = 'clean_reconstruction_training_set'
 SoundsDataset = CleanSoundsDataset
-dset_kwargs = {'cgram_shuffle':1}
+dset_kwargs = {'cgram_shuffle':2}
 PNetClass = PBranchedNetwork_AllSeparateHP
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print(f'Device: {DEVICE}')
