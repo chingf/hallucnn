@@ -57,10 +57,7 @@ main_tf_dir = f'{hyp_dir}{tf_string}/'
 
 # # Helper functions to load network
 
-def get_hyperparams(tf_filepath, bg, snr, shared=False):
-    if shared:
-        raise ValueError('Not implemented for shared hyperparameters.')
-        
+def get_hyperparams(tf_filepath, bg, snr):
     hyperparams = []
     ea = event_accumulator.EventAccumulator(tf_filepath)
     ea.Reload()
@@ -195,7 +192,10 @@ def save_activations(pnet, dset, hdf5_path):
 # # Run activation-saving functions
 for bg in bgs:
     for snr in snrs:
-        tf_dir = f'{main_tf_dir}hyper_{bg}_snr{snr}/'
+        if 'merged' in main_tf_dir:
+            tf_dir = f'{main_tf_dir}hyper_all/'
+        else:
+            tf_dir = f'{main_tf_dir}hyper_{bg}_snr{snr}/'
         if not os.path.isdir(tf_dir): continue
         activ_dir = f'{activations_dir}{bg}_snr{int(snr)}/'
         os.makedirs(activ_dir, exist_ok=True)

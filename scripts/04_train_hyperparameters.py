@@ -12,25 +12,17 @@ from torch.utils.data import Subset
 from predify.utils.training import train_pcoders, eval_pcoders
 
 from models.networks_2022 import BranchedNetwork
-from data.NoisyDataset import NoisyDataset, FullNoisyDataset, LargeNoisyDataset
+#from data.NoisyDataset import NoisyDataset, FullNoisyDataset, LargeNoisyDataset
+from data.ReconstructionTrainingDataset import NoisySoundsDataset
 
 task_number = int(sys.argv[1])
 pnet_name = str(sys.argv[2])
 pnet_chckpt = int(sys.argv[3])
 tensorboard_pnet_name = str(sys.argv[4])
-max_iters = int(sys.argv[5])
 
 # # Global configurations
 
-# Args
-task_args = []
-for noise_types in [['AudScene'], ['Babble8Spkr'], ['pinkNoise']]:
-    for snr_levels in [[-9.], [-6.], [-3.], [0.], [3.]]:
-        task_args.append((noise_types, snr_levels))
-
 # Main args
-task_number = task_number % len(task_args)
-noise_types, snr_levels = task_args[task_number]
 LR_SCALING = 0.01
 SAME_PARAM = False
 
@@ -144,6 +136,7 @@ def train(net, epoch, dataloader, timesteps, loss_function, optimizer, writer=No
                 outputs, _ = net()
                 current_loss = loss_function(outputs, labels)
                 ttloss[tt] = current_loss.item()
+                #if tt == timesteps:# TODO: check timestep effect
                 loss += current_loss
         
         loss.backward()
@@ -192,9 +185,10 @@ def log_hyper_parameters(net, epoch, sumwriter, same_param=True):
 # In[ ]:
 
 
-def train_and_eval(noise_type, snr_level):
+def train_and_eval():
     # Load noisy data
-    noisy_ds = LargeNoisyDataset(bg=noise_type, snr=snr_level)
+    _datafile = 'hyperparameter_pooled_training_dataset_random_order_noNulls'
+    noisy_ds = NoisySoundsDataset(f'{engram_dir}{_datafile}.hdf5')
     noise_loader = torch.utils.data.DataLoader(
         noisy_ds,  batch_size=BATCH_SIZE,
         shuffle=True, drop_last=False,
@@ -202,7 +196,7 @@ def train_and_eval(noise_type, snr_level):
         )
 
     # Set up logs and network for training
-    net_dir = f'hyper_{noise_type}_snr{snr_level}'
+    net_dir = f'hyper_all'
     if not FF_START:
         net_dir += '_randomInit'
     if SAME_PARAM:
@@ -238,7 +232,11 @@ def train_and_eval(noise_type, snr_level):
 
     # Set up loss function and hyperparameters
     loss_function = torch.nn.CrossEntropyLoss()
+    for param in pnet.parameters():
+        param.requires_grad = False
     hyperparams = [*pnet.get_hyperparameters()]
+    for hyperparam in hyperparams:
+        hyperparam.requires_grad = True
     if SAME_PARAM:
         optimizer = torch.optim.Adam([
             {'params': hyperparams[:-1], 'lr':0.01*LR_SCALING},
@@ -282,21 +280,16 @@ def train_and_eval(noise_type, snr_level):
     sumwriter.close()
 
 
-for noise_type in noise_types:
-    for snr_level in snr_levels:
-        net_dir = f'hyper_{noise_type}_snr{snr_level}'
-        if not FF_START:
-            net_dir += '_randomInit'
-        if SAME_PARAM:
-            net_dir += '_shared'
-        net_dir = f'{tensorboard_dir}{net_dir}'
-        os.makedirs(net_dir, exist_ok=True)
-        n_tboards = len(os.listdir(net_dir))
-        n_iters = max(0, max_iters-n_tboards)
-        for _ in range(n_iters):
-            print("=====================")
-            print(f'{noise_type}, for SNR {snr_level}')
-            print(tensorboard_dir)
-            print("=====================")
-            train_and_eval(noise_type, snr_level)
+net_dir = f'hyper_all'
+if not FF_START:
+    net_dir += '_randomInit'
+if SAME_PARAM:
+    net_dir += '_shared'
+net_dir = f'{tensorboard_dir}{net_dir}'
+os.makedirs(net_dir, exist_ok=True)
+print("=====================")
+print(f'All noise types')
+print(tensorboard_dir)
+print("=====================")
+train_and_eval()
 

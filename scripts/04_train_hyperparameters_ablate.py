@@ -249,7 +249,11 @@ def train_and_eval(noise_type, snr_level):
 
     # Set up loss function and hyperparameters
     loss_function = torch.nn.CrossEntropyLoss()
+    for param in pnet.parameters():
+        param.requires_grad = False
     hyperparams = [*pnet.get_hyperparameters()]
+    for hyperparam in hyperparams:
+        hyperparam.requires_grad = True
     if SAME_PARAM:
         if ablation == 'erm':
             optimizer = torch.optim.Adam([
