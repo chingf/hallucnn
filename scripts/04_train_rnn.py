@@ -14,13 +14,16 @@ from models.pbranchednetwork_rnn import PBranchedNetwork_RNN
 
 # User-defined parameters
 TASK_ID = int(sys.argv[1])
-NUM_EPOCHS = int(sys.argv[2])
+load_pnet_name = str(sys.argv[2])
+load_pnet_chckpt = int(sys.argv[3])
+NUM_EPOCHS = int(sys.argv[4])
 pnet_name = f'pnet_rnn_{TASK_ID}'
+
 
 # Default parameters
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print(f'Device: {DEVICE}')
-BATCH_SIZE = 50
+BATCH_SIZE = 32
 NUM_WORKERS = 1
 MAX_TIMESTEP = 5
 PIN_MEMORY = True
@@ -117,6 +120,11 @@ def train_and_eval():
     net = BranchedNetwork()
     net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
     pnet = PBranchedNetwork_RNN(net, build_graph=True)
+    if load_pnet_chckpt > 0:
+        print(f'LOADING network {load_pnet_name}-{load_pnet_chckpt}')
+        pnet.load_state_dict(torch.load(
+            f'{checkpoints_dir}/{load_pnet_name}/{load_pnet_name}-{load_pnet_chckpt}-regular.pth'
+            ))
     pnet.eval()
     pnet.to(DEVICE)
     
@@ -153,7 +161,10 @@ def train_and_eval():
     sumwriter = SummaryWriter(tensorboard_path, filename_suffix=f'')
     
     # Iterate through epochs
-    for epoch in range(1, NUM_EPOCHS+1):
+    start_idx = 0
+    if (load_pnet_chckpt) > 0 and (pnet_name == load_pnet_name):
+        start_idx = load_pnet_chckpt
+    for epoch in range(start_idx+1, NUM_EPOCHS+start_idx+1):
         train(pnet, epoch, train_loader, MAX_TIMESTEP,
             loss_function, optimizer, writer=sumwriter)
         log_hyper_parameters(pnet, epoch, sumwriter)
