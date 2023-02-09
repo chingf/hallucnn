@@ -71,3 +71,12 @@ class PBranchedNetwork_RNN(PNetSeparateHP):
         trainable.extend([{'params': mem_hp, 'lr': hyp_lr}]) # Hyperparameters
         return trainable
 
+    def get_trainable_parameter_names(self):
+        param_names = []
+        for name, _ in self.named_parameters():
+            if 'pcoder' in name:
+                param_names.append(name)
+            elif 'mem_part' in name:
+                param_names.append(name)
+        return param_names
+

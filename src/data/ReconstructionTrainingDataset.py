@@ -36,7 +36,8 @@ class CleanSoundsDataset(Dataset):
                 indices = np.arange(400, dtype=int)
                 np.random.shuffle(indices)
                 self.shuffle_idxs[i] = indices
-        
+       
+        self.start_ind= 0
         if subset is not None:
             if train: 
                 self.n_data = int(self.n_data*subset)
@@ -106,6 +107,7 @@ class NoisySoundsDataset(Dataset):
 
         # Determine size of final dataset
         self.n_data = self.valid_index.size
+        self.start_ind = 0
         if subset is not None:
             if train: 
                 self.n_data = int(self.n_data*subset)
@@ -122,14 +124,13 @@ class NoisySoundsDataset(Dataset):
         return self.n_data
 
     def __getitem__(self, idx):
-        
-        if not self.train:
-            idx = idx + self.start_ind # Adds offset for test set 
-        
+        # Indices may be shuffled into random order. Also add offset if test set.
+        if torch.is_tensor(idx) and self.random_order:
+            idx = [self.new_indices[i] + self.start_ind for i in idx]
+        elif self.random_order:
+            idx = self.new_indices[idx] + self.start_ind
         if torch.is_tensor(idx):
             idx = idx.tolist()
-            if self.random_order:
-                idx = [self.new_indices[i] for i in idx]
 
         new_idx = self.valid_index[idx] 
         item = np.array(self.f['data'][new_idx]).reshape((-1, 164, 400))*self.scaling
