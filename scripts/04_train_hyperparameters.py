@@ -12,6 +12,7 @@ from torch.utils.data import Subset
 from predify.utils.training import train_pcoders, eval_pcoders
 
 from models.networks_2022 import BranchedNetwork
+from models.pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
 #from data.NoisyDataset import NoisyDataset, FullNoisyDataset, LargeNoisyDataset
 from data.ReconstructionTrainingDataset import NoisySoundsDataset
 
@@ -35,24 +36,14 @@ EPOCH = 100
 FF_START = True             # to start from feedforward initialization
 MAX_TIMESTEP = 5
 
-
 # Path names
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
 checkpoints_dir = f'{engram_dir}1_checkpoints/'
 tensorboard_dir = f'{engram_dir}2_hyperp/{tensorboard_pnet_name}/'
 
 # # Load network arguments
-
-if SAME_PARAM:
-    from models.pbranchednetwork_shared import PBranchedNetwork_SharedSameHP
-    PNetClass = PBranchedNetwork_SharedSameHP
-    fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-shared-{pnet_chckpt}-regular.pth'
-else:
-    from models.pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
-    PNetClass = PBranchedNetwork_AllSeparateHP
-    fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-{pnet_chckpt}-regular.pth'
+fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-{pnet_chckpt}-regular.pth'
 fb_state_dict = torch.load(fb_state_dict_path)
-
 
 # # Helper functions
 
@@ -61,11 +52,10 @@ def load_pnet(
         ff_multiplier, fb_multiplier, er_multiplier,
         same_param, device='cuda:0'):
     
-    pnet = PNetClass(
+    pnet = PBranchedNetwork_AllSeparateHP(
         net, build_graph=build_graph, random_init=random_init,
         ff_multiplier=ff_multiplier, fb_multiplier=fb_multiplier, er_multiplier=er_multiplier
         )
-
     pnet.load_state_dict(state_dict)
     hyperparams = []
     for i in range(1, 6):
@@ -200,23 +190,8 @@ def train_and_eval():
     if SAME_PARAM:
         net_dir += '_shared'
 
-    sumwriter = SummaryWriter(f'{tensorboard_dir}{net_dir}')
-    net = BranchedNetwork() # Load original network
-    net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
-    pnet_fw = load_pnet( # Load FF PNet
-        net, fb_state_dict, build_graph=False, random_init=(not FF_START),
-        ff_multiplier=1.0, fb_multiplier=0.0, er_multiplier=0.0,
-        same_param=SAME_PARAM, device='cuda:0'
-        )
-    loss_function = torch.nn.CrossEntropyLoss()
-    evaluate(
-        pnet_fw, 0, noise_loader, 1,
-        loss_function,
-        writer=sumwriter, tag='FeedForward')
-    del pnet_fw
-    gc.collect()
-
     # Load PNet for hyperparameter optimization
+    sumwriter = SummaryWriter(f'{tensorboard_dir}{net_dir}')
     net = BranchedNetwork()
     net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
     ffm = np.random.uniform()
