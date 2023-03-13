@@ -10,5 +10,4 @@
 
 source ~/.bashrc
 source activate hcnn
-python 11_calc_popln_denoising.py $SLURM_ARRAY_TASK_ID pnet
-python 11_calc_popln_denoising.py $SLURM_ARRAY_TASK_ID pnet_cgram_shuffle
+python 11_calc_popln_denoising.py $SLURM_ARRAY_TASK_ID random_matched

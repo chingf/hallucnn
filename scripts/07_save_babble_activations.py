@@ -3,7 +3,6 @@
 
 # In[2]:
 
-
 import os
 import sys
 import numpy as np
@@ -26,6 +25,13 @@ from data.NoisyDataset import NoisyDataset, FullNoisyDataset
 
 # Batch params
 task_number = int(sys.argv[1])
+activations_string = str(sys.argv[2])
+pnet_name = str(sys.argv[3])
+chckpt = int(sys.argv[4])
+tf_string = str(sys.argv[5])
+merged_hyperparameters = int(sys.argv[6])
+
+# ARG LIST
 task_args = []
 for snrs in [[-9.0], [-6.0], [-3.0], [0.0], [3.0]]:
     for bgs in [['Babble8Spkr'], ['AudScene'], ['pinkNoise']]:
@@ -33,38 +39,33 @@ for snrs in [[-9.0], [-6.0], [-3.0], [0.0], [3.0]]:
 task_number = task_number % len(task_args)
 snrs, bgs = task_args[task_number]
 
-# # PNet parameters
-
+# PNET PARAMETERS
 from models.pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
 PNetClass = PBranchedNetwork_AllSeparateHP
-pnet_name = 'pnet'
-chckpt = 50
 n_timesteps = 5
 layers = ['conv1', 'conv2', 'conv3', 'conv4_W', 'conv5_W', 'fc6_W']
 
 # # Paths to relevant directories
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
-activations_dir = f'{engram_dir}activations_random/'
-checkpoints_dir = f'{engram_dir}checkpoints/'
-tensorboard_dir = f'{engram_dir}tensorboard/'
-main_tf_dir = f'{tensorboard_dir}randomInit_lr_0.01x/'
+checkpoints_dir = f'{engram_dir}1_checkpoints/'
+hyp_dir = f'{engram_dir}2_hyperp/'
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print(f'Device: {DEVICE}')
 
+# WHICH MODELS?
+activations_dir = f'{engram_dir}3_activations/{activations_string}/'
+main_tf_dir = f'{hyp_dir}{tf_string}/'
 
 # # Helper functions to load network
 
-def get_hyperparams(tf_filepath, bg, snr, shared=False):
-    if shared:
-        raise ValueError('Not implemented for shared hyperparameters.')
-        
+def get_hyperparams(tf_filepath, bg, snr):
     hyperparams = []
     ea = event_accumulator.EventAccumulator(tf_filepath)
     ea.Reload()
-    try:
-        _eval_acc = ea.Scalars(f'NoisyPerf/Epoch#80')[0].value
-    except:
-        return None
+    #try:
+    #    _eval_acc = ea.Scalars(f'NoisyPerf/Epoch#80')[0].value
+    #except:
+    #    return None
     for i in range(1, 6):
         hps = {}
         ffm = ea.Scalars(f'Hyperparam/pcoder{i}_feedforward')[-1].value
@@ -80,12 +81,12 @@ def get_hyperparams(tf_filepath, bg, snr, shared=False):
 
 def load_pnet(PNetClass, pnet_name, chckpt, hyperparams=None):
     net = BranchedNetwork(track_encoder_representations=True)
-    #net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
+    net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
     pnet = PNetClass(net, build_graph=False)
-    #pnet.load_state_dict(torch.load(
-    #    f"{checkpoints_dir}{pnet_name}/{pnet_name}-{chckpt}-regular.pth",
-    #    map_location='cpu'
-    #    ))
+    pnet.load_state_dict(torch.load(
+        f"{checkpoints_dir}{pnet_name}/{pnet_name}-{chckpt}-regular.pth",
+        map_location='cpu'
+        ))
     if hyperparams is not None:
         pnet.set_hyperparameters(hyperparams)
     pnet.to(DEVICE)
@@ -109,18 +110,16 @@ n_units_per_layer = {
 
 def run_pnet(pnet, _input):
     pnet.reset()
-    reconstructions = []
     activations = []
     logits = []
     output = []
     for t in range(n_timesteps):
         _input_t = _input if t == 0 else None
         logits_t, _ = pnet(_input_t)
-        reconstructions.append(pnet.pcoder1.prd[0,0].cpu().numpy())
         activations.append(pnet.backbone.encoder_repr)
         logits.append(logits_t.cpu().numpy().squeeze())
         output.append(logits_t.max(-1)[1].item())
-    return reconstructions, activations, logits, output
+    return activations, logits, output
 
 @torch.no_grad()
 def save_activations(pnet, dset, hdf5_path):
@@ -137,7 +136,6 @@ def save_activations(pnet, dset, hdf5_path):
             'pnet_correct', dset.n_data, dtype='float32'
             )
         for layer_idx, layer in enumerate(layers):
-            reconstr_dim = (dset.n_data, 164, 400)
             activ_dim = (dset.n_data,) + n_units_per_layer[layer]
             logit_dim = (dset.n_data, 531)
             for timestep in range(n_timesteps):
@@ -148,9 +146,6 @@ def save_activations(pnet, dset, hdf5_path):
                     f'{layer}_{timestep}_clean_activations', activ_dim, dtype='float32'
                     )
                 if layer_idx == 0:
-                    data_dict[f'{timestep}_reconstructions'] = f_out.create_dataset(
-                        f'{timestep}_reconstructions', reconstr_dim, dtype='float32'
-                        )
                     data_dict[f'{timestep}_logits'] = f_out.create_dataset(
                         f'{timestep}_logits', logit_dim, dtype='float32'
                         )
@@ -169,14 +164,12 @@ def save_activations(pnet, dset, hdf5_path):
             noisy_in, label = dset[idx]
             data_dict['label'][idx] = label
             noisy_in = noisy_in.to(DEVICE)
-            reconstructions, activations, logits, output = run_pnet(pnet, noisy_in)
+            activations, logits, output = run_pnet(pnet, noisy_in)
             data_dict['pnet_correct'][idx] = label == output[-1]
             for timestep in range(n_timesteps):
                 for layer in layers:
                     data_dict[f'{layer}_{timestep}_activations'][idx] = \
                         activations[timestep][layer]
-                data_dict[f'{timestep}_reconstructions'][idx] = \
-                    reconstructions[timestep]
                 data_dict[f'{timestep}_logits'][idx] = \
                     logits[timestep]
                 data_dict[f'{timestep}_output'][idx] = output[timestep]
@@ -185,7 +178,8 @@ def save_activations(pnet, dset, hdf5_path):
             clean_in = torch.tensor(
                 dset.clean_in[idx].reshape((1, 1, 164, 400))
                 ).to(DEVICE)
-            reconstructions, activations, logits, output = run_pnet(pnet, clean_in)
+            clean_in = clean_in.to(DEVICE)
+            activations, logits, output = run_pnet(pnet, clean_in)
             data_dict['clean_correct'][idx] = label == output[0]
             for timestep in range(n_timesteps):
                 for layer in layers:
@@ -199,8 +193,13 @@ def save_activations(pnet, dset, hdf5_path):
 # # Run activation-saving functions
 for bg in bgs:
     for snr in snrs:
-        tf_dir = f'{main_tf_dir}hyper_{bg}_snr{snr}/'
+        if merged_hyperparameters == 0:
+            tf_dir = f'{main_tf_dir}hyper_Babble8Spkr_snr{snr}/'
+        else:
+            tf_dir = f'{main_tf_dir}hyper_all/'
+        if not os.path.isdir(tf_dir): continue
         activ_dir = f'{activations_dir}{bg}_snr{int(snr)}/'
+        os.makedirs(activ_dir, exist_ok=True)
         for tf_file in os.listdir(tf_dir):
             tf_filepath = f'{tf_dir}{tf_file}'
             tf_file = tf_file.split('edu.')[-1]
@@ -210,5 +209,7 @@ for bg in bgs:
             pnet = load_pnet(PNetClass, pnet_name, chckpt, hyperparams)
             dset = NoisyDataset(bg, snr)
             hdf5_path = f'{activ_dir}{tf_file}.hdf5'
+            if os.path.exists(hdf5_path):
+                continue
             save_activations(pnet, dset, hdf5_path)
 

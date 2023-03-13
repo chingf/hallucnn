@@ -109,9 +109,6 @@ def train_and_eval(gpu, args):
     # GPU set up
     print(f"USING GPU {gpu}")
     setup(gpu, num_gpus, free_port)
-    #dist.init_process_group(
-    #    backend='nccl', init_method='env://',
-    #    world_size=num_gpus, rank=0)
     torch.cuda.set_device(gpu)
 
     # Set up net wrapper with correct hyperparameter with gradient

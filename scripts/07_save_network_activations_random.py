@@ -60,10 +60,6 @@ def get_hyperparams(tf_filepath, bg, snr):
     hyperparams = []
     ea = event_accumulator.EventAccumulator(tf_filepath)
     ea.Reload()
-    #try:
-    #    _eval_acc = ea.Scalars(f'NoisyPerf/Epoch#80')[0].value
-    #except:
-    #    return None
     for i in range(1, 6):
         hps = {}
         ffm = ea.Scalars(f'Hyperparam/pcoder{i}_feedforward')[-1].value
@@ -225,10 +221,7 @@ def get_checkpoint(tf_file):
 # # Run activation-saving functions
 for bg in bgs:
     for snr in snrs:
-        if 'merged' in main_tf_dir:
-            tf_dir = f'{main_tf_dir}hyper_all/'
-        else:
-            tf_dir = f'{main_tf_dir}hyper_{bg}_snr{snr}/'
+        tf_dir = f'{main_tf_dir}hyper_all/'
         if not os.path.isdir(tf_dir): continue
         activ_dir = f'{activations_dir}{bg}_snr{int(snr)}/'
         os.makedirs(activ_dir, exist_ok=True)
@@ -239,6 +232,7 @@ for bg in bgs:
             if hyperparams is None:
                 continue
             chckpt = get_checkpoint(tf_file)
+            print(f'{tf_filepath} is loading {pnet_name}-{chckpt}')
             pnet = load_pnet(PNetClass, pnet_name, chckpt, hyperparams)
             dset = NoisyDataset(bg, snr)
             hdf5_path = f'{activ_dir}{tf_file}.hdf5'

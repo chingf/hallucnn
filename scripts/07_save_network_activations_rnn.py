@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader
 from predify.utils.training import train_pcoders, eval_pcoders
 
 from models.networks_2022 import BranchedNetwork
+from models.pbranchednetwork_rnn import PBranchedNetwork_RNN
 from data.ReconstructionTrainingDataset import CleanSoundsDataset
 from data.NoisyDataset import NoisyDataset, FullNoisyDataset
 
@@ -28,8 +29,6 @@ task_number = int(sys.argv[1])
 activations_string = str(sys.argv[2])
 pnet_name = str(sys.argv[3])
 chckpt = int(sys.argv[4])
-tf_string = str(sys.argv[5])
-merged_hyperparameters = int(sys.argv[6])
 
 # ARG LIST
 task_args = []
@@ -54,51 +53,21 @@ print(f'Device: {DEVICE}')
 
 # WHICH MODELS?
 activations_dir = f'{engram_dir}3_activations/{activations_string}/'
-main_tf_dir = f'{hyp_dir}{tf_string}/'
 
 # # Helper functions to load network
 
-def get_hyperparams(tf_filepath, bg, snr):
-    hyperparams = []
-    ea = event_accumulator.EventAccumulator(tf_filepath)
-    ea.Reload()
-    #try:
-    #    _eval_acc = ea.Scalars(f'NoisyPerf/Epoch#80')[0].value
-    #except:
-    #    return None
-    for i in range(1, 6):
-        hps = {}
-        ffm = ea.Scalars(f'Hyperparam/pcoder{i}_feedforward')[-1].value
-        fbm = ea.Scalars(f'Hyperparam/pcoder{i}_feedback')[-1].value
-        erm = ea.Scalars(f'Hyperparam/pcoder{i}_error')[-1].value
-        if np.isnan(ffm) or np.isnan(fbm) or np.isnan(erm):
-            return None
-        hps['ffm'] = ffm
-        hps['fbm'] = fbm
-        hps['erm'] = erm
-        hyperparams.append(hps)
-    return hyperparams
-
-def load_pnet(PNetClass, pnet_name, chckpt, hyperparams=None):
+def load_pnet(pnet_name, chckpt):
     net = BranchedNetwork(track_encoder_representations=True)
     net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
-    pnet = PNetClass(net, build_graph=False)
+    pnet = PBranchedNetwork_RNN(net, build_graph=False)
     pnet.load_state_dict(torch.load(
         f"{checkpoints_dir}{pnet_name}/{pnet_name}-{chckpt}-regular.pth",
         map_location='cpu'
         ))
-    if hyperparams is not None:
-        pnet.set_hyperparameters(hyperparams)
     pnet.to(DEVICE)
     pnet.eval();
     print(f'Loaded Pnet: {pnet_name}')
-    print_hps(pnet)
     return pnet
-
-def print_hps(pnet):
-    for pc in range(pnet.number_of_pcoders):
-        print (f"PCoder{pc+1} : ffm: {getattr(pnet,f'ffm{pc+1}'):0.3f} \t fbm: {getattr(pnet,f'fbm{pc+1}'):0.3f} \t erm: {getattr(pnet,f'erm{pc+1}'):0.3f}")
-
 
 # # Helper functions to save activations
 
@@ -193,23 +162,12 @@ def save_activations(pnet, dset, hdf5_path):
 # # Run activation-saving functions
 for bg in bgs:
     for snr in snrs:
-        if merged_hyperparameters == 0:
-            tf_dir = f'{main_tf_dir}hyper_{bg}_snr{snr}/'
-        else:
-            tf_dir = f'{main_tf_dir}hyper_all/'
-        if not os.path.isdir(tf_dir): continue
         activ_dir = f'{activations_dir}{bg}_snr{int(snr)}/'
         os.makedirs(activ_dir, exist_ok=True)
-        for tf_file in os.listdir(tf_dir):
-            tf_filepath = f'{tf_dir}{tf_file}'
-            tf_file = tf_file.split('edu.')[-1]
-            hyperparams = get_hyperparams(tf_filepath, bg, snr)
-            if hyperparams is None:
-                continue
-            pnet = load_pnet(PNetClass, pnet_name, chckpt, hyperparams)
-            dset = NoisyDataset(bg, snr)
-            hdf5_path = f'{activ_dir}{tf_file}.hdf5'
-            if os.path.exists(hdf5_path):
-                continue
-            save_activations(pnet, dset, hdf5_path)
+        pnet = load_pnet(pnet_name, chckpt)
+        dset = NoisyDataset(bg, snr)
+        hdf5_path = f'{activ_dir}{pnet_name}-{chckpt}.hdf5'
+        if os.path.exists(hdf5_path):
+            continue
+        save_activations(pnet, dset, hdf5_path)
 
