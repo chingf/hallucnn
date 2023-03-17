@@ -91,11 +91,11 @@ class NoisySoundsDataset(Dataset):
         self.label_key = label_key
         self.scaling = scaling
         self.train = train
-        self.f = h5py.File(hdf_file, 'r')
+        f = h5py.File(hdf_file, 'r')
         self.random_order = random_order
 
         # Subset by background noise or SNR as desired
-        path_to_wav = np.array(self.f['path_to_wav']).astype('U')
+        path_to_wav = np.array(f['path_to_wav']).astype('U')
         valid_index = []
         for index, wav in enumerate(path_to_wav):
             if bg != None:
@@ -123,7 +123,11 @@ class NoisySoundsDataset(Dataset):
     def __len__(self):
         return self.n_data
 
+    def open_hdf5(self):
+        self.f = h5py.File(self.hdf_file, 'r')
+
     def __getitem__(self, idx):
+        if not hasattr(self, 'f'): self.open_hdf5()
         # Indices may be shuffled into random order. Also add offset if test set.
         if torch.is_tensor(idx) and self.random_order:
             idx = [self.new_indices[i] + self.start_ind for i in idx]
