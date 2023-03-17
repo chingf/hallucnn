@@ -37,10 +37,8 @@ def setup(rank, world_size, port):
     # Initialize the process group.
     dist.init_process_group('NCCL', rank=rank, world_size=world_size)
 
-
 def cleanup():
     dist.destroy_process_group()
-
 
 def evaluate(
     net, epoch, test_dataset, timesteps,

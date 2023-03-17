@@ -35,7 +35,7 @@ LR_SCALING = 0.01
 SAME_PARAM = False
 
 # Dataset configuration
-BATCH_SIZE = 50
+BATCH_SIZE = 32
 NUM_WORKERS = 2
 
 # Other training params
