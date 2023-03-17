@@ -21,7 +21,8 @@ import torch.distributed as dist
 # # Global configurations
 
 # Main args
-BATCH_SIZE = int(32/4)
+BATCH_SIZE = 6 #int(32/4)
+N_BATCH_ACCUMULATE = 4
 MAX_TIMESTEP = 5
 lr = 1E-5
 NUM_WORKERS = 2
@@ -120,13 +121,14 @@ def log_hyper_parameters(net, epoch, sumwriter):
 def train(
         ddpnet, net, epoch, dataloader, timesteps,
         loss_function, optimizer, gpu, writer):
+    optimizer.zero_grad()
     for batch_index, (images, labels) in enumerate(dataloader):
         start_time = time.time()
         net.reset()
         labels = labels.cuda(non_blocking=True)
         images = images.cuda(non_blocking=True)
         ttloss = np.zeros((timesteps+1))
-        optimizer.zero_grad()
+        #optimizer.zero_grad()
 
         for tt in range(timesteps+1):
             if tt == 0:
@@ -138,25 +140,26 @@ def train(
                 current_loss = loss_function(outputs, labels)
                 ttloss[tt] = current_loss.item()
                 loss = loss + current_loss
-        loss.backward()
-        optimizer.step()
-        net.update_hyperparameters()
-        end_time = time.time()
-        if (writer is not None) and (gpu==0):
-            progress_string = f'training epoch: {epoch} '
-            progress_string += f'[{batch_index * BATCH_SIZE + len(images)}/'
-            progress_string += f'{len(dataloader.dataset)}]'
-            progress_string += f'loss: {loss.item():0.4f}\t'
-            progress_string += f'lr: {optimizer.param_groups[0]["lr"]:0.6f}'
-            print(progress_string)
-            for tt in range(MAX_TIMESTEP+1):
-                print(f'{ttloss[tt]:0.4f}\t', end='')
-            hps = net.get_hyperparameters_values()
-            print(f'\n{hps}\n')
-            print(f'PROCESSING TIME: {end_time-start_time}')
-            curr_batch = (epoch-1)*len(dataloader) + batch_index
-            writer.add_scalar(f"TrainingLoss/CE", loss.item(), curr_batch)
-
+        if batch_index % N_BATCH_ACCUMULATE == 0:
+            loss.backward()
+            optimizer.step()
+            net.update_hyperparameters()
+            end_time = time.time()
+            if (writer is not None) and (gpu==0):
+                progress_string = f'training epoch: {epoch} '
+                progress_string += f'[{batch_index * BATCH_SIZE + len(images)}/'
+                progress_string += f'{len(dataloader.dataset)}]'
+                progress_string += f'loss: {loss.item():0.4f}\t'
+                progress_string += f'lr: {optimizer.param_groups[0]["lr"]:0.6f}'
+                print(progress_string)
+                for tt in range(MAX_TIMESTEP+1):
+                    print(f'{ttloss[tt]:0.4f}\t', end='')
+                hps = net.get_hyperparameters_values()
+                print(f'\n{hps}\n')
+                print(f'PROCESSING TIME: {end_time-start_time}')
+                curr_batch = (epoch-1)*len(dataloader) + batch_index
+                writer.add_scalar(f"TrainingLoss/CE", loss.item(), curr_batch)
+            optimizer.zero_grad()
 # # Main hyperparameter optimization script
 
 def train_and_eval(gpu, args):
@@ -169,7 +172,9 @@ def train_and_eval(gpu, args):
     free_port = args['free_port']
     engram_dir = args['engram_dir']
     tensorboard_dir = args['tensorboard_dir']
-    fb_state_dict = args['fb_state_dict']
+    fb_state_dict_path = args['fb_state_dict_path']
+    cuda_device = torch.device('cuda', gpu)
+    fb_state_dict = torch.load(fb_state_dict_path, map_location=cuda_device)
 
     # GPU set up
     print(f"USING GPU {gpu}")
@@ -178,7 +183,9 @@ def train_and_eval(gpu, args):
 
     # Set up net wrapper with correct hyperparameter with gradient
     net = BranchedNetwork()
-    net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
+    net.load_state_dict(
+        torch.load(f'{engram_dir}networks_2022_weights.pt',
+        map_location=cuda_device))
     if ablate == None:
         ffm = np.random.uniform()
         fbm = np.random.uniform(high=1.-ffm)
@@ -283,7 +290,7 @@ if __name__ == '__main__':
     checkpoints_dir = f'{engram_dir}1_checkpoints/'
     tensorboard_dir = f'{engram_dir}2_hyperp/{tensorboard_pnet_name}/hyper_all/'
     fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-{pnet_chckpt}-regular.pth'
-    fb_state_dict = torch.load(fb_state_dict_path)
+
     print("=====================")
     print(f'All noise types')
     print(tensorboard_dir)
@@ -299,7 +306,7 @@ if __name__ == '__main__':
     args['free_port'] = free_port
     args['engram_dir'] = engram_dir
     args['tensorboard_dir'] = tensorboard_dir
-    args['fb_state_dict'] = fb_state_dict
+    args['fb_state_dict_path'] = fb_state_dict_path
 
     mp.spawn(train_and_eval, nprocs=num_gpus, args=(args,))
 
