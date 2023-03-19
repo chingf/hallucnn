@@ -24,7 +24,7 @@ import torch.distributed as dist
 BATCH_SIZE = 6 #int(32/4)
 N_BATCH_ACCUMULATE = 4
 MAX_TIMESTEP = 5
-lr = 1E-5
+lr = 1E-4
 NUM_WORKERS = 2
 
 # Other training params
@@ -160,6 +160,10 @@ def train(
                 curr_batch = (epoch-1)*len(dataloader) + batch_index
                 writer.add_scalar(f"TrainingLoss/CE", loss.item(), curr_batch)
             optimizer.zero_grad()
+    if batch_index % N_BATCH_ACCUMULATE != 0:
+        loss.backward()
+        optimizer.step()
+        net.update_hyperparameters()
 # # Main hyperparameter optimization script
 
 def train_and_eval(gpu, args):
@@ -249,9 +253,9 @@ def train_and_eval(gpu, args):
         hps = pnet.get_hyperparameters_values()
         print('Hyperparameters:')
         print(hps)
-        #evaluate(
-        #    ddp_pnet, pnet, 0, test_loader, MAX_TIMESTEP, loss_function,
-        #    writer=sumwriter, tag='Noisy')
+        evaluate(
+            ddp_pnet, pnet, 0, test_loader, MAX_TIMESTEP, loss_function,
+            writer=sumwriter, tag='Noisy')
 
     # Iterate through epochs
     for epoch in range(1, EPOCH+1):
@@ -268,7 +272,8 @@ def train_and_eval(gpu, args):
                 ddp_pnet, pnet, epoch, test_loader, MAX_TIMESTEP, loss_function,
                 writer=sumwriter, tag='Noisy')
     cleanup()
-    sumwriter.close()
+    if gpu == 0:
+        sumwriter.close()
 
 if __name__ == '__main__':
     task_number = int(sys.argv[1])
