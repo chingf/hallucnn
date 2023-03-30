@@ -21,8 +21,6 @@ import torch.distributed as dist
 # # Global configurations
 
 # Main args
-BATCH_SIZE = 6 #int(32/4)
-N_BATCH_ACCUMULATE = 4
 MAX_TIMESTEP = 5
 lr = 1E-4
 NUM_WORKERS = 2
@@ -280,10 +278,12 @@ if __name__ == '__main__':
     pnet_name = str(sys.argv[2])
     pnet_chckpt = int(sys.argv[3])
     tensorboard_pnet_name = str(sys.argv[4])
-    num_gpus = int(sys.argv[5])
-    if len(sys.argv) > 6:
+    num_gpus = int(sys.argv[5]) # 4
+    BATCH_SIZE = int(sys.argv[6]) # 6
+    N_BATCH_ACCUMULATE = int(sys.argv[7]) #4
+    if len(sys.argv) > 8:
         print("Ablation argument received.")
-        ablate = str(sys.argv[6])
+        ablate = str(sys.argv[8])
         if (ablate != 'erm') and (ablate != 'fbm'):
             raise ValueError('Not valid ablation type')
     else:
