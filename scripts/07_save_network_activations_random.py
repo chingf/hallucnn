@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
-
 import os
 import sys
 import numpy as np
@@ -28,6 +26,10 @@ task_number = int(sys.argv[1])
 activations_string = str(sys.argv[2])
 pnet_name = str(sys.argv[3])
 tf_string = str(sys.argv[4])
+if len(sys.argv) > 5:
+    device_num = sys.argv[5]
+    my_env = os.environ
+    my_env["CUDA_VISIBLE_DEVICES"] = device_num
 
 # ARG LIST
 task_args = []
