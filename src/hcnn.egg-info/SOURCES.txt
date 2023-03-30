@@ -12,4 +12,5 @@ models/layers.py
 models/networks_2018.py
 models/networks_2022.py
 models/pbranchednetwork_all.py
+models/pbranchednetwork_rnn.py
 models/pbranchednetwork_shared.py
