@@ -18,11 +18,30 @@ pnet_name = str(sys.argv[1])
 load_pnet_name = str(sys.argv[2])
 load_pnet_chckpt = int(sys.argv[3])
 NUM_EPOCHS = int(sys.argv[4])
+if len(sys.argv > 5):
+    dset_mod = str(sys.argv[5])
+else:
+    dset_mod = None
 
 # Set up PNet and dataset parameters
-_train_datafile = 'clean_reconstruction_training_set'
-SoundsDataset = CleanSoundsDataset
-dset_kwargs = {}
+if dset_mod == None:
+    _train_datafile = 'clean_reconstruction_training_set'
+    SoundsDataset = CleanSoundsDataset
+    dset_kwargs = {}
+elif dset_mod == 'temp_shuffle':
+    _train_datafile = 'clean_reconstruction_training_set'
+    SoundsDataset = CleanSoundsDataset
+    dset_kwargs = {'cgram_shuffle':2}
+elif dset_mod == 'freq_shuffle':
+    _train_datafile = 'clean_reconstruction_training_set'
+    SoundsDataset = CleanSoundsDataset
+    dset_kwargs = {'cgram_shuffle':1}
+elif dset_mod == 'noisy':
+    _train_datafile = 'hyperparameter_pooled_training_dataset_random_order_noNulls'
+    SoundsDataset = NoisySoundsDataset
+    dset_kwargs = {'snr': 'neg9'}
+else:
+    raise ValueError('Unrecognized dataset modification')
 PNetClass = PBranchedNetwork_AllSeparateHP
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print(f'Device: {DEVICE}')
