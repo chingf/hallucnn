@@ -30,6 +30,10 @@ pnet_name = str(sys.argv[3])
 chckpt = int(sys.argv[4])
 tf_string = str(sys.argv[5])
 merged_hyperparameters = int(sys.argv[6])
+if len(sys.argv) > 7:
+    device_num = sys.argv[7]
+    my_env = os.environ
+    my_env["CUDA_VISIBLE_DEVICES"] = device_num
 
 # ARG LIST
 task_args = []
