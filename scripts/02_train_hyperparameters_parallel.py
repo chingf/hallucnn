@@ -13,7 +13,7 @@ from torch.utils.data import Subset
 from predify.utils.training import train_pcoders, eval_pcoders
 from models.networks_2022 import BranchedNetwork
 from models.pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
-from data.ReconstructionTrainingDataset import NoisySoundsDataset
+from data.HyperparameterTrainingDataset import NoisySoundsDataset
 import torch.multiprocessing as mp
 import torch.distributed as dist
 
@@ -166,6 +166,8 @@ def train(
 
 def train_and_eval(gpu, args):
     # Unpack args
+    noise_type = args['noise_type']
+    snr_level = args['snr_level']
     pnet_name = args['pnet_name']
     pnet_chckpt = args['pnet_chckpt']
     tensorboard_pnet_name = args['tensorboard_pnet_name']
@@ -230,7 +232,8 @@ def train_and_eval(gpu, args):
 
     # Set up noisy data
     _datafile = 'hyperparameter_pooled_training_dataset_random_order_noNulls'
-    train_dataset = NoisySoundsDataset(f'{engram_dir}{_datafile}.hdf5', subset=0.9)
+    train_dataset = NoisySoundsDataset(
+        f'{engram_dir}{_datafile}.hdf5', subset=0.9, bg=bg, snr=snr)
     train_sampler = torch.utils.data.distributed.DistributedSampler(
         train_dataset, num_replicas=num_gpus, rank=gpu)
     train_loader = torch.utils.data.DataLoader(
@@ -238,7 +241,8 @@ def train_and_eval(gpu, args):
         pin_memory=True, sampler=train_sampler, drop_last=False)
     if gpu == 0:
         test_dataset = NoisySoundsDataset(
-            f'{engram_dir}{_datafile}.hdf5', subset=0.9, train=False)
+            f'{engram_dir}{_datafile}.hdf5', subset=0.9, train=False,
+            bg=bg, snr=snr)
         test_loader = torch.utils.data.DataLoader(
             test_dataset, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS,
             pin_memory=True, drop_last=False)
@@ -289,20 +293,28 @@ if __name__ == '__main__':
     else:
         ablate = None
     free_port = get_open_port()
+    task_args = []
+    for bg in ['AudScene', 'Babble8Spkr', 'pinkNoise']:
+        for snr in [-9., -6., -3., 0., 3.]:
+            task_args.append((bg, snr))
+    bg, snr = task_args[task_number]
+    net_dir = f'hyper_{bg}_snr{snr}'
     
     # Set up necessary paths
     engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
     checkpoints_dir = f'{engram_dir}1_checkpoints/'
-    tensorboard_dir = f'{engram_dir}2_hyperp/{tensorboard_pnet_name}/hyper_all/'
+    tensorboard_dir = f'{engram_dir}2_hyperp/{tensorboard_pnet_name}/{net_dir}/'
     fb_state_dict_path = f'{checkpoints_dir}{pnet_name}/{pnet_name}-{pnet_chckpt}-regular.pth'
 
     print("=====================")
-    print(f'All noise types')
+    print(f'{bg}, for SNR {snr}')
     print(tensorboard_dir)
     print("=====================")
 
     # Collect into args
     args = {}
+    args['bg'] = bg
+    args['snr'] = snr
     args['pnet_name'] = pnet_name
     args['pnet_chckpt'] = pnet_chckpt
     args['tensorboard_pnet_name'] = tensorboard_pnet_name
