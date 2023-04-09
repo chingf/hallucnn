@@ -27,6 +27,12 @@ class NoisySoundsDataset(Dataset):
         f = h5py.File(hdf_file, 'r')
         self.random_order = random_order
 
+        # Janky conversion
+        bg = convert_bg_string(bg)
+        snr = convert_snr_string(snr)
+        print(bg)
+        print(snr)
+
         # Subset by background noise or SNR as desired
         path_to_wav = np.array(f['path_to_wav']).astype('U')
         valid_index = []
@@ -105,4 +111,27 @@ class MergedNoisyDataset(Dataset):
         items = np.array(self.f['data'][idx]).reshape((-1, 164, 400))*self.SCALING
         labels = np.array(self.f['label_indices'][idx])
         return torch.tensor(items), torch.tensor(labels).type(torch.LongTensor)
+
+def convert_bg_string(bg):
+    if bg == 'AudScene':
+        bg = 'auditory_scene'
+    elif bg == 'Babble8Spkr':
+        bg = 'babble_8spkr'
+    elif bg == 'pinkNoise':
+        bg = 'pink_noise'
+    return bg
+
+def convert_snr_string(snr):
+    if snr == -9.:
+        snr = 'neg9'
+    elif snr == -6.:
+        snr = 'neg6'
+    elif snr == -3.:
+        snr = 'neg3'
+    elif snr == 0.:
+        snr = '0'
+    elif snr == 3.:
+        snr = '3'
+    return snr
+
 
