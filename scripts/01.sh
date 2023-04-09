@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#SBATCH --job-name=CgramShuffle
+#SBATCH --job-name=Pnet2
 #SBATCH -c 2 
 #SBATCH --time=99:00:00
 #SBATCH --mem-per-cpu=8gb
@@ -10,5 +10,5 @@
 #SBATCH --array=0
 
 source ~/.bashrc
-source activate hcnn
-python 03_train_net_cgram_shuffle.py pnet_freq_shuffle_pt2 pnet_freq_shuffle 1180 1000
+source activate a40
+python 01_train_net.py pnet2_pt2 pnet2 245 1700
