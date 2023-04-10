@@ -21,7 +21,7 @@ from predify.utils.training import train_pcoders, eval_pcoders
 
 from models.networks_2022 import BranchedNetwork
 from data.ReconstructionTrainingDataset import CleanSoundsDataset
-from data.NoisyDataset import NoisyDataset, FullNoisyDataset
+from data.ValidationDataset import NoisyDataset, FullNoisyDataset
 
 # Batch params
 task_number = int(sys.argv[1])
@@ -66,22 +66,30 @@ def get_hyperparams(tf_filepath, bg, snr):
     hyperparams = []
     ea = event_accumulator.EventAccumulator(tf_filepath)
     ea.Reload()
-    #try:
-    #    _eval_acc = ea.Scalars(f'NoisyPerf/Epoch#80')[0].value
-    #except:
-    #    return None
+    eval_score = [0]
+    epoch = 0
+    while True:
+        try:
+            score_over_t = 0.
+            for t in np.arange(1,5):
+                score_over_t += ea.Scalars(f'NoisyPerf/Epoch#{epoch}')[t].value
+                epoch += 1
+            score_over_t /= 4
+            eval_score.append(score_over_t)
+        except Exception as e:
+            break
     for i in range(1, 6):
         hps = {}
         ffm = ea.Scalars(f'Hyperparam/pcoder{i}_feedforward')[-1].value
         fbm = ea.Scalars(f'Hyperparam/pcoder{i}_feedback')[-1].value
         erm = ea.Scalars(f'Hyperparam/pcoder{i}_error')[-1].value
         if np.isnan(ffm) or np.isnan(fbm) or np.isnan(erm):
-            return None
+            return None, 0.
         hps['ffm'] = ffm
         hps['fbm'] = fbm
         hps['erm'] = erm
         hyperparams.append(hps)
-    return hyperparams
+    return hyperparams, eval_score[-1]
 
 def load_pnet(PNetClass, pnet_name, chckpt, hyperparams=None):
     net = BranchedNetwork(track_encoder_representations=True)
@@ -204,16 +212,26 @@ for bg in bgs:
         if not os.path.isdir(tf_dir): continue
         activ_dir = f'{activations_dir}{bg}_snr{int(snr)}/'
         os.makedirs(activ_dir, exist_ok=True)
+        best_score = 0.
+        best_hyperparams = None
+        best_tf_file = None
         for tf_file in os.listdir(tf_dir):
             tf_filepath = f'{tf_dir}{tf_file}'
             tf_file = tf_file.split('edu.')[-1]
-            hyperparams = get_hyperparams(tf_filepath, bg, snr)
+            hyperparams, score = get_hyperparams(tf_filepath, bg, snr)
             if hyperparams is None:
                 continue
-            pnet = load_pnet(PNetClass, pnet_name, chckpt, hyperparams)
-            dset = NoisyDataset(bg, snr)
-            hdf5_path = f'{activ_dir}{tf_file}.hdf5'
-            if os.path.exists(hdf5_path):
-                continue
-            save_activations(pnet, dset, hdf5_path)
+            if score > best_score:
+                best_score = score
+                best_hyperparams = hyperparams
+                best_tf_file = tf_file
+        print(f'{bg}, SNR {snr} uses {best_tf_file} with valid score {best_score}')
+
+        # Use the best hyperparameter set
+        pnet = load_pnet(PNetClass, pnet_name, chckpt, best_hyperparams)
+        dset = NoisyDataset(bg, snr)
+        hdf5_path = f'{activ_dir}{best_tf_file}.hdf5'
+        if os.path.exists(hdf5_path):
+            continue
+        save_activations(pnet, dset, hdf5_path)
 
