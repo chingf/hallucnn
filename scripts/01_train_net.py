@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import numpy as np
 import gc
 import h5py
@@ -14,11 +15,9 @@ from models.pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
 
 # load user-defined parameters
 pnet_name = str(sys.argv[1])
-load_pnet_name = str(sys.argv[2])
-load_pnet_chckpt = int(sys.argv[3])
-NUM_EPOCHS = int(sys.argv[4])
-if len(sys.argv) > 5:
-    dset_mod = str(sys.argv[5])
+NUM_EPOCHS = int(sys.argv[2])
+if len(sys.argv) > 3:
+    dset_mod = str(sys.argv[3])
 else:
     dset_mod = None
 
@@ -72,11 +71,22 @@ train_datafile = f'{engram_dir}{_train_datafile}.hdf5'
 net = BranchedNetwork()
 net.load_state_dict(torch.load(f'{engram_dir}networks_2022_weights.pt'))
 pnet = PNetClass(net, build_graph=True)
-if load_pnet_chckpt > 0:
-    print(f'LOADING network {load_pnet_name}-{load_pnet_chckpt}')
-    pnet.load_state_dict(torch.load(
-        f'{checkpoints_dir}/{load_pnet_name}/{load_pnet_name}-{load_pnet_chckpt}-regular.pth'
-        ))
+
+# Load from checkpoints
+start_epoch = 0
+if os.path.isdir(f'{checkpoints_dir}{pnet_name}/'):
+    chckpt_epochs = [0]
+    regex = f'{pnet_name}-(\d+)-regular\.pth'
+    for chckpt_file in os.listdir(f'{checkpoints_dir}{pnet_name}/'):
+        m = re.search(regex, chckpt_file)
+        chckpt_epochs.append(int(m.group(1)))
+    max_chckpt_epoch = max(chckpt_epochs)
+    if max_chckpt_epoch > 0:
+        start_epoch = max_chckpt_epoch
+        print(f'LOADING network {pnet_name}-{start_epoch}')
+        pnet.load_state_dict(torch.load(
+            f'{checkpoints_dir}{pnet_name}/{pnet_name}-{start_epoch}-regular.pth'
+            ))
 pnet.eval()
 pnet.to(DEVICE)
 optimizer = torch.optim.Adam([
@@ -109,7 +119,7 @@ sumwriter = SummaryWriter(tensorboard_path, filename_suffix=f'')
 
 # Train
 loss_function = torch.nn.MSELoss()
-for epoch in range(1, NUM_EPOCHS+1):
+for epoch in range(start_epoch, NUM_EPOCHS+1):
     train_pcoders(
         pnet, optimizer, loss_function, epoch, train_loader, DEVICE, sumwriter,
         n_batch_accumulate=N_BATCH_ACCUMULATE)
