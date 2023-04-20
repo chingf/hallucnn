@@ -1,6 +1,9 @@
 # Auditory CNN and SCZ
 What (schizophrenia-like) mechanisms drive auditory hallucinations?
 
+# Companion Repository
+For vision experiments see [this repo](https://github.com/chingf/hallucnn-vision).
+
 # Usage
 Path to data files should be provided in `src/data/configs.py`
 
