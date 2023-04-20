@@ -51,8 +51,9 @@ class NoisySoundsDataset(Dataset):
             if train: 
                 self.n_data = int(self.n_data*subset)
             else:
-                self.n_data = int(self.n_data * (1-subset))
+                n_data = int(self.n_data * (1-subset))
                 self.start_ind = int(self.n_data * subset)
+                self.n_data = n_data
 
         # Random order
         if random_order:
