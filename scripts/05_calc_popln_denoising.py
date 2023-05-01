@@ -16,7 +16,7 @@ from torch.utils.data import Subset
 from predify.utils.training import train_pcoders, eval_pcoders
 
 from models.networks_2022 import BranchedNetwork
-from data.NoisyDataset import NoisyDataset, FullNoisyDataset
+from data.ValidationDataset import NoisyDataset, FullNoisyDataset
 
 # This is bad practice! But the warnings are real annoying
 import warnings
