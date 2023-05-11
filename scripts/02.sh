@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#SBATCH --job-name=HypPnet
+#SBATCH --job-name=HypPnet2
 #SBATCH -c 3
 #SBATCH --time=99:00:00
 #SBATCH --mem-per-cpu=8gb
@@ -11,5 +11,5 @@
 
 source ~/.bashrc
 source activate a40
-python 02_train_hyperparameters.py $SLURM_ARRAY_TASK_ID pnet 1960 pnet
+python 02_train_hyperparameters.py $SLURM_ARRAY_TASK_ID pnet2 2000 pnet2
 

@@ -11,4 +11,4 @@
 
 source ~/.bashrc
 source activate a40
-python 01_train_net.py pnet2_pt2 pnet2 245 1700
+python 01_train_net.py pnet2 2000

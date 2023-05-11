@@ -9,5 +9,5 @@
 #SBATCH --array=0-14
 
 source ~/.bashrc
-source activate hcnn
-python 11_calc_popln_denoising.py $SLURM_ARRAY_TASK_ID random_matched
+source activate a40
+python 05_calc_popln_denoising.py $SLURM_ARRAY_TASK_ID pnet
