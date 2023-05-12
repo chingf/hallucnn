@@ -24,7 +24,7 @@ bg_types = ['pinkNoise', 'AudScene', 'Babble8Spkr']
 snr_types = [-9.0, -6.0, -3.0, 0.0, 3.0]
 
 ##### HELPER FUNCTIONS #####
-def get_data(conv_idx, sample_size=None):
+def get_data(conv_idx, t, sample_size=None):
     X = []
     bgs = []
     snrs = []
@@ -83,36 +83,28 @@ def get_cpu_usage():
     p_used = round((used_memory/total_memory) * 100, 2)
     print(f"RAM {used_memory} GB, {p_used}% used")
 
-def reduce_and_save(conv_idx, t):
+def fit_and_save(conv_idx, t):
     X, bgs, snrs, dset_idxs = get_data(conv_idx, t)
     print('Fitting Model...')
-    pca = PCA(n_components=0.9)
-    X_pca = pca.fit_transform(X)
+    pca = PCA()
+    pca.fit(X)
     print(f'{pca.n_components_} components used for % variance explained:')
     print(np.sum(pca.explained_variance_ratio_))
     get_cpu_usage()
 
+
     os.makedirs(pca_activations_dir, exist_ok=True)
-    pca_filename = f'PCAmodel_conv{conv_idx}_t{t}'
+    pca_filename = f'FullPCAmodel_conv{conv_idx}_t{t}'
     with open(f'{pca_activations_dir}{pca_filename}.p', 'wb') as f:
-        pickle.dump(pca, f)
-    
-    data_filename = f'data_conv{conv_idx}_t{t}'
-    with h5py.File(f'{pca_activations_dir}{data_filename}.hdf5', 'x') as f_out:
-        data_dict = {}
-        data_dict['X_pca'] = f_out.create_dataset('X_pca', data=X_pca)
-        bgs_ascii = [n.encode("ascii", "ignore") for n in bgs]
-        data_dict['bgs'] = f_out.create_dataset('bgs', data=bgs_ascii, dtype='S10')
-        data_dict['snrs'] = f_out.create_dataset('snrs', data=snrs)
-        data_dict['dset_idxs'] = f_out.create_dataset('dset_idxs', data=dset_idxs)
+        pickle.dump(pca, f, protocol=4)
 
 ##### MAIN CALL #####
 
 if __name__ == "__main__":
     for conv_idx in [1, 2, 3, 4, 5]:
         for t in [0, 1, 2, 3, 4]:
-            if conv_idx==1 and t==0: continue
+            if conv_idx==1 and t==1: continue
             print(f'====== PROCESSING LAYER {conv_idx}, TIMESTEP {t} ======')
-            reduce_and_save(conv_idx, t)
+            fit_and_save(conv_idx, t)
             gc.collect()
 
