@@ -87,7 +87,6 @@ def reduce_and_save(conv_idx, t):
 if __name__ == "__main__":
     for conv_idx in [1, 2, 3, 4, 5]:
         for t in [0, 1, 2, 3, 4]:
-            if conv_idx==1 and t==1: continue
             print(f'====== PROCESSING LAYER {conv_idx}, TIMESTEP {t} ======')
             reduce_and_save(conv_idx, t)
             gc.collect()
