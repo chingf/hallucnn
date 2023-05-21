@@ -11,5 +11,5 @@
 
 source ~/.bashrc
 source activate a40
-python 04_save_activations.py $SLURM_ARRAY_TASK_ID pnet pnet 1960 pnet 0
+python 04_save_activations.py $SLURM_ARRAY_TASK_ID pnet2 pnet2 2000 pnet2 0
 

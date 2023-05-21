@@ -1,0 +1,4 @@
+python 07_save_network_activations_random.py 0 random_matched untrained_random_matched random_matched 0
+python 07_save_network_activations_random.py 1 random_matched untrained_random_matched random_matched 0
+python 07_save_network_activations_random.py 2 random_matched untrained_random_matched random_matched 0
+python 07_save_network_activations_random.py 3 random_matched untrained_random_matched random_matched 0
