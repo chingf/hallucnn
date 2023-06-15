@@ -23,4 +23,4 @@ else
     export LD_LIBRARY_PATH=/home/cf2794/.conda/envs/hcnn/lib/python3.7/site-packages/nvidia/cublas/lib/:$LD_LIBRARY_PATH
 fi
 
-python 08_calc_factorization.py pnet
+python 09_calc_factorization.py pnet

@@ -23,4 +23,4 @@ else
     export LD_LIBRARY_PATH=/home/cf2794/.conda/envs/hcnn/lib/python3.7/site-packages/nvidia/cublas/lib/:$LD_LIBRARY_PATH
 fi
 
-python 05_calc_popln_denoising.py $SLURM_ARRAY_TASK_ID pnet
+python 06_calc_popln_denoising.py $SLURM_ARRAY_TASK_ID pnet

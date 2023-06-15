@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 from predify.utils.training import train_pcoders, eval_pcoders
 
 from models.networks_2022 import BranchedNetwork
-from data.ValidationDataset import NoisyDataset, FullNoisyDataset
+from data.HyperparameterTrainingDataset import NoisySoundsDataset
 
 # Batch params
 task_number = int(sys.argv[1])
@@ -56,7 +56,7 @@ DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print(f'Device: {DEVICE}')
 
 # WHICH MODELS?
-activations_dir = f'{engram_dir}3_validation_activations/{activations_string}/'
+activations_dir = f'{engram_dir}3_train_activations/{activations_string}/'
 main_tf_dir = f'{hyp_dir}{tf_string}/'
 
 # # Helper functions to load network
@@ -133,73 +133,66 @@ def run_pnet(pnet, _input):
     return activations, logits, output
 
 @torch.no_grad()
-def save_activations(pnet, dset, hdf5_path):
-    
-    with h5py.File(hdf5_path, 'x') as f_out:
-        data_dict = {}
-        data_dict['label'] = f_out.create_dataset(
-            'label', dset.n_data, dtype='float32'
-            )
-        data_dict['clean_correct'] = f_out.create_dataset(
-            'clean_correct', dset.n_data, dtype='float32'
-            )
-        data_dict['pnet_correct'] = f_out.create_dataset(
-            'pnet_correct', dset.n_data, dtype='float32'
-            )
-        for layer_idx, layer in enumerate(layers):
-            activ_dim = (dset.n_data,) + n_units_per_layer[layer]
-            logit_dim = (dset.n_data, 531)
-            for timestep in range(n_timesteps):
-                data_dict[f'{layer}_{timestep}_activations'] = f_out.create_dataset(
-                    f'{layer}_{timestep}_activations', activ_dim, dtype='float32'
-                    )
-                data_dict[f'{layer}_{timestep}_clean_activations'] = f_out.create_dataset(
-                    f'{layer}_{timestep}_clean_activations', activ_dim, dtype='float32'
-                    )
-                if layer_idx == 0:
-                    data_dict[f'{timestep}_logits'] = f_out.create_dataset(
-                        f'{timestep}_logits', logit_dim, dtype='float32'
-                        )
-                    data_dict[f'{timestep}_output'] = f_out.create_dataset(
-                        f'{timestep}_output', dset.n_data, dtype='float32'
-                        )
-                    data_dict[f'{timestep}_clean_logits'] = f_out.create_dataset(
-                        f'{timestep}_clean_logits', logit_dim, dtype='float32'
-                        )
-                    data_dict[f'{timestep}_clean_output'] = f_out.create_dataset(
-                        f'{timestep}_clean_output', dset.n_data, dtype='float32'
-                        )
-    
-        for idx in range(dset.n_data):
-            # Noisy input
-            noisy_in, label = dset[idx]
-            data_dict['label'][idx] = label
-            noisy_in = noisy_in.to(DEVICE)
-            activations, logits, output = run_pnet(pnet, noisy_in)
-            data_dict['pnet_correct'][idx] = label == output[-1]
-            for timestep in range(n_timesteps):
-                for layer in layers:
-                    data_dict[f'{layer}_{timestep}_activations'][idx] = \
-                        activations[timestep][layer]
-                data_dict[f'{timestep}_logits'][idx] = \
-                    logits[timestep]
-                data_dict[f'{timestep}_output'][idx] = output[timestep]
+def save_activations(pnet, dset, hdf5_basepath):
+    '''
+    Since the hyperparameter training dataset is large, the activations will be saved
+    in chunks of 1000 samples.
+    '''
 
-            # Clean input
-            clean_in = torch.tensor(
-                dset.clean_in[idx].reshape((1, 1, 164, 400))
-                ).to(DEVICE)
-            clean_in = clean_in.to(DEVICE)
-            activations, logits, output = run_pnet(pnet, clean_in)
-            data_dict['clean_correct'][idx] = label == output[0]
-            for timestep in range(n_timesteps):
-                for layer in layers:
-                    data_dict[f'{layer}_{timestep}_clean_activations'][idx] = \
-                        activations[timestep][layer]
-                data_dict[f'{timestep}_clean_logits'][idx] = \
-                    logits[timestep]
-                data_dict[f'{timestep}_clean_output'][idx] = output[timestep]
-                    
+    n_parts = dset.n_data // 1000
+    uneven_parts = False
+    if dset.n_data % 1000 != 0:
+        n_parts += 1
+        uneven_parts = True
+    data_index_offset = 0
+    print(f'{n_parts} PARTS PRESENT for a total of {dset.n_data} datapoints')
+
+    for part in range(n_parts):
+        hdf5_path = f'{hdf5_basepath}_pt{part}.hdf5'
+        if os.path.exists(hdf5_path):
+            continue
+        if uneven_parts and (part == n_parts - 1):
+            n_data = dset.n_data % 1000
+        else:
+            n_data = 1000
+
+        print(f'Starting part {part} which has {n_data} datapoints')
+
+        with h5py.File(hdf5_path, 'x') as f_out:
+            data_dict = {}
+            data_dict['label'] = f_out.create_dataset(
+                'label', n_data, dtype='float32')
+            data_dict['pnet_correct'] = f_out.create_dataset(
+                'pnet_correct', n_data, dtype='float32')
+            for layer_idx, layer in enumerate(layers):
+                activ_dim = (n_data,) + n_units_per_layer[layer]
+                logit_dim = (n_data, 531)
+                for timestep in range(n_timesteps):
+                    data_dict[f'{layer}_{timestep}_activations'] = f_out.create_dataset(
+                        f'{layer}_{timestep}_activations', activ_dim, dtype='float32'
+                        )
+                    if layer_idx == 0:
+                        data_dict[f'{timestep}_logits'] = f_out.create_dataset(
+                            f'{timestep}_logits', logit_dim, dtype='float32')
+                        data_dict[f'{timestep}_output'] = f_out.create_dataset(
+                            f'{timestep}_output', n_data, dtype='float32')
+        
+            for idx in range(n_data):
+                # Noisy input
+                noisy_in, label = dset[data_index_offset + idx]
+                data_dict['label'][idx] = label
+                noisy_in = noisy_in.to(DEVICE)
+                activations, logits, output = run_pnet(pnet, noisy_in)
+                data_dict['pnet_correct'][idx] = label == output[-1]
+                for timestep in range(n_timesteps):
+                    for layer in layers:
+                        data_dict[f'{layer}_{timestep}_activations'][idx] = \
+                            activations[timestep][layer]
+                    data_dict[f'{timestep}_logits'][idx] = \
+                        logits[timestep]
+                    data_dict[f'{timestep}_output'][idx] = output[timestep]
+        data_index_offset += n_data
+
 
 # # Run activation-saving functions
 for bg in bgs:
@@ -228,9 +221,10 @@ for bg in bgs:
 
         # Use the best hyperparameter set
         pnet = load_pnet(PNetClass, pnet_name, chckpt, best_hyperparams)
-        dset = NoisyDataset(bg, snr)
-        hdf5_path = f'{activ_dir}{best_tf_file}.hdf5'
-        if os.path.exists(hdf5_path):
-            continue
-        save_activations(pnet, dset, hdf5_path)
+        _datafile = 'hyperparameter_pooled_training_dataset_random_order_noNulls'
+        dset = NoisySoundsDataset(
+            f'{engram_dir}{_datafile}.hdf5', bg=bg, snr=snr)
+        hdf5_basepath = f'{activ_dir}{best_tf_file}'
+        print(hdf5_basepath)
+        save_activations(pnet, dset, hdf5_basepath)
 

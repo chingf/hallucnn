@@ -1,7 +1,7 @@
 #!/bin/sh
 #
-#SBATCH --job-name=Activ
-#SBATCH -c 2 
+#SBATCH --job-name=TrainActiv
+#SBATCH -c 4
 #SBATCH --time=99:00:00
 #SBATCH --mem-per-cpu=8gb
 #SBATCH --gres=gpu:1
@@ -24,5 +24,5 @@ else
     export LD_LIBRARY_PATH=/home/cf2794/.conda/envs/hcnn/lib/python3.7/site-packages/nvidia/cublas/lib/:$LD_LIBRARY_PATH
 fi
 
-python 04_save_activations.py $SLURM_ARRAY_TASK_ID pnet2 pnet2 2000 pnet2 0
+python 05_save_train_activations.py $SLURM_ARRAY_TASK_ID pnet pnet 1960 pnet 0
 
