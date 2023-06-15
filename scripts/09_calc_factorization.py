@@ -90,6 +90,7 @@ if __name__ == "__main__":
                     
                     # Load data and PCA model
                     activ, clean_activ, label = get_data(conv_idx, t, bg, snr)
+                    import pdb; pdb.set_trace()
                     print(activ.shape)
 
                     if not shuffle:

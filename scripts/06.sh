@@ -1,10 +1,9 @@
 #!/bin/sh
 #
-#SBATCH --job-name=HypTempShuffle
-#SBATCH -c 3
+#SBATCH --job-name=Denoising
+#SBATCH -c 2 
 #SBATCH --time=99:00:00
 #SBATCH --mem-per-cpu=8gb
-#SBATCH --gres=gpu:1
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=chingfang17@gmail.com
 #SBATCH --array=0-14
@@ -24,5 +23,4 @@ else
     export LD_LIBRARY_PATH=/home/cf2794/.conda/envs/hcnn/lib/python3.7/site-packages/nvidia/cublas/lib/:$LD_LIBRARY_PATH
 fi
 
-python 02_train_hyperparameters.py $SLURM_ARRAY_TASK_ID pnet_temp_shuffle 2140 pnet_temp_shuffle
-
+python 05_calc_popln_denoising.py $SLURM_ARRAY_TASK_ID pnet
