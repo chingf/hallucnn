@@ -65,16 +65,31 @@ def get_data_and_fit_PCA(conv_idx, t, pca_activations_dir):
         raise ValueError('There appears to be an error-- genre label used.')
 
     # Calculate prototypes
+    labels_to_use = []
     for l, count in enumerate(label_count):
-        if l == 0: continue
+        if l == 0: continue # Drop the 0th label (genre)
         label_prototypes[l] /= count
+        if count > 0:
+            labels_to_use.append(l)
+        else:
+            print(f'Warning: label {l} contains no samples and will be skipped.')
     label_prototypes = np.array(label_prototypes)
+    label_prototypes = label_prototypes[labels_to_use, :]
+    prototype_results = {
+        'labels': labels_to_use, 'label_count': label_count,
+        'prototypes': label_prototypes}
+    prototypes_filename = f'prototypes_conv{conv_idx}_t{t}'
+    with open(f'{pca_activations_dir}{prototypes_filename}.p', 'wb') as f:
+        pickle.dump(prototype_results, f, protocol=4)
 
     # Run PCA
     print('Running PCA on label prototypes with (samples, features) shape:')
     print(label_prototypes.shape)
     pca = PCA()
-    pca.fit(label_prototypes)
+    try:
+        pca.fit(label_prototypes)
+    except:
+        import pdb; pdb.set_trace()
     pca_filename = f'PCA_conv{conv_idx}_t{t}'
     with open(f'{pca_activations_dir}{pca_filename}.p', 'wb') as f:
         pickle.dump(pca, f, protocol=4)
