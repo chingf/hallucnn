@@ -17,18 +17,27 @@ from data.ValidationDataset import NoisyDataset
 
 # Arguments
 netname = str(sys.argv[1]) # pnet
-shuffle = True
-auc = True
+shuffle = False
+auc = False
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
-activations_dir = f'{engram_dir}3_activations/{netname}/'
+train_activations_dir = f'{engram_dir}3_train_activations/{netname}/'
+validation_activations_dir = f'{engram_dir}3_validation_activations/{netname}/'
+pca_activations_dir = f'{engram_dir}4_train_prototype_PCA/{netname}/'
 pickles_dir = f'{engram_dir}pickles/'
-pca_activations_dir = f'{engram_dir}4_activations_pca/{netname}/'
 bg_types = ['pinkNoise', 'AudScene', 'Babble8Spkr']
 snr_types = [-9.0, -6.0, -3.0, 0.0, 3.0]
 
 # Helper functions
-def get_data(conv_idx, t, bg, snr):
-    activ_dir = f'{activations_dir}{bg}_snr{int(snr)}/'
+def get_cpu_usage():
+    total_memory, used_memory, free_memory = map(
+        int, os.popen('free -t --giga').readlines()[-1].split()[1:])
+
+    # Memory usage
+    p_used = round((used_memory/total_memory) * 100, 2)
+    print(f"RAM {used_memory} GB, {p_used}% used")
+
+def get_valid_data(conv_idx, t, bg, snr):
+    activ_dir = f'{validation_activations_dir}{bg}_snr{int(snr)}/'
     for results_file in os.listdir(activ_dir):
         results_filepath = f'{activ_dir}{results_file}'
         results = h5py.File(results_filepath, 'r')
@@ -38,96 +47,87 @@ def get_data(conv_idx, t, bg, snr):
         activ = np.array(results[f'conv{conv_idx}_{t}_activations'])
     n_data = activ.shape[0]
     activ = activ.reshape((n_data, -1))
-    
-    # Repeat for clean
-    if conv_idx > 3:
-        clean_activ = np.array(results[f'conv{conv_idx}_W_{t}_clean_activations'])
-    else:
-        clean_activ = np.array(results[f'conv{conv_idx}_{t}_clean_activations'])
-    clean_activ = clean_activ.reshape((n_data, -1))
-    
-    return activ, clean_activ, np.array(results['label'])
+    return activ, np.array(results['label'])
 
 def get_projection(activ, pca):
     activ_centered = activ - pca.mean_[None,:]
     projected_activ = activ_centered @ (pca.components_).T
     return projected_activ
 
-def get_explained_var(activ, pca, auc=True):
+def get_explained_var(centered_activ, pca, auc=True):
     """ ACTIV should be of shape (N, DIMS)"""
     
-    cum_var = np.cumsum(pca.explained_variance_ratio_)
-    K = np.argwhere(cum_var>0.9)[0].item()
-    cum_var_K = cum_var[K]
-    activ_centered = activ - pca.mean_[None,:]
-    sample_size = activ.shape[0]
-    if sample_size == 0: sample_size = 1
-    total_var = np.sum(np.square(activ_centered))/sample_size
-    projected_activ = activ_centered @ pca.components_.T
-    sample_size = projected_activ.shape[0]-1
-    if sample_size == 0: sample_size = 1
-    explained_var = np.sum(np.square(projected_activ), axis=0)/sample_size
-    explained_var = explained_var/total_var
+    sample_size = centered_activ.shape[0]
+    total_var = np.sum(np.square(centered_activ))/sample_size
+    projected_activ = centered_activ @ pca.components_.T
+    var_by_component = np.sum(np.square(projected_activ), axis=0)/sample_size
+    var_by_component = var_by_component/total_var
     if auc:
-        var_curve = np.cumsum(explained_var)
-        clean_explained = np.trapz(var_curve, dx=1/var_curve.size)
+        var_curve = np.cumsum(var_by_component)
+        explained_var = np.trapz(var_curve, dx=1/var_curve.size)
     else:
-        clean_explained = np.sum(explained_var[:K+1])
-    return clean_explained
+        pca_cum_var = np.cumsum(pca.explained_variance_ratio_)
+        K = np.argwhere(pca_cum_var>0.9)[0].item()
+        explained_var = np.sum(var_by_component[:K+1])
+    return explained_var 
 
-if __name__ == "__main__":
+def main():
     # Measure factorization for each noise/layer/timestep
     bgs = []
     snrs = []
     convs = []
     ts = []
     factorization = []
-    for bg in bg_types:
-        for snr in snr_types:
-            for conv_idx in [1,2,3,4,5]:
-                for t in [0,1,2,3,4]:
+
+    for conv_idx in [1,2,3,4,5]:
+
+        # Load PCA model and the prototype vectors from t = 0
+        prototypes_fname = f'prototypes_conv{conv_idx}_t0'
+        prototypes_fname = f'{pca_activations_dir}{prototypes_fname}.p'
+        with open(prototypes_fname, 'rb') as f:
+            prototype_results = pickle.load(f)
+        labels_to_use = prototype_results['labels']
+        prototypes = prototype_results['prototypes']
+        pca_filename = f'PCA_conv{conv_idx}_t0'
+        with open(f'{pca_activations_dir}{pca_filename}.p', 'rb') as f:
+            pca = pickle.load(f)
+
+        # Iterate over timesteps of predictive processing
+        for t in [0,1,2,3,4]:
+            activ = []
+            label = []
+            for bg in bg_types:
+                for snr in snr_types:
                     print(f'{bg}, {snr}, conv {conv_idx}, t {t}')
-                    
-                    # Load data and PCA model
-                    activ, clean_activ, label = get_data(conv_idx, t, bg, snr)
-                    import pdb; pdb.set_trace()
-                    print(activ.shape)
+                    _activ, _label = get_valid_data(conv_idx, t, bg, snr)
+                    activ.append(_activ)
+                    label.append(_label)
+            del _activ
+            del _label
+            gc.collect()
+            activ = np.vstack(activ)
+            label = np.concatenate(label)
 
-                    if not shuffle:
-                        clean_pca_path = f'{pca_activations_dir}PCA_{bg}_{snr}_clean_conv{conv_idx}_t{t}.p'
-                    else:
-                        # Dummy clean dataset-- actually a shuffle
-                        clean_pca_path = f'{pca_activations_dir}PCA_{bg}_{snr}_shufflehalf_conv{conv_idx}_t{t}.p'
-                        _activ = np.zeros(activ.shape) # Dummy noisy dataset
-                        _activ[1::2] = np.copy(clean_activ[1::2])
-                        _activ[::2] = np.copy(activ[::2])
-                        _clean_activ = np.zeros(clean_activ.shape) # Dummy clean
-                        _clean_activ[1::2] = np.copy(activ[1::2])
-                        _clean_activ[::2] = np.copy(clean_activ[::2])
-                        activ = _activ
-                        clean_activ = clean_activ
-
-                    with open(clean_pca_path, 'rb') as f:
-                        clean_pca = pickle.load(f)
-                        
-                    # Calculate factorization ratio for each sample (vectorize!!)
-                    for i in range(activ.shape[0]):
-                        noise_var = get_explained_var(
-                            activ[i].reshape((1,-1)), clean_pca, auc=auc)
-                        clean_var = get_explained_var(
-                            clean_activ[i].reshape((1,-1)), clean_pca, auc=auc)
-                        bgs.append(bg)
-                        snrs.append(snr)
-                        convs.append(conv_idx)
-                        ts.append(t)
-                        factorization.append(noise_var/clean_var)
-
-                    del clean_pca
-                    gc.collect()
+            # Calculate factorization for each centered label
+            var_ratios = []
+            for l_idx, l in enumerate(labels_to_use):
+                activ_indices = label==l
+                if np.sum(activ_indices) == 0:
+                    continue
+                prototype = prototypes[l_idx]
+                centered_activ = activ[activ_indices] - prototype[None,:]
+                l_var_ratio = get_explained_var(centered_activ, pca, auc=auc)
+                if not auc:
+                    l_var_ratio = l_var_ratio / 0.9
+                convs.append(conv_idx)
+                ts.append(t)
+                factorization.append(l_var_ratio)
+        
+            del activ
+            del label
+            gc.collect()
             
     df = pd.DataFrame({
-        'BG': bgs,
-        'SNR': snrs,
         'Conv': convs,
         'T': ts,
         'Factorization': factorization
@@ -141,4 +141,7 @@ if __name__ == "__main__":
     pfile = f'{pickles_dir}{netname}_{pfile}'
     with open(pfile, 'wb') as f:
         pickle.dump(df, f)
+
+if __name__ == "__main__":
+    main()
 
