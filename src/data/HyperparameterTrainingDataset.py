@@ -17,7 +17,7 @@ class NoisySoundsDataset(Dataset):
     def __init__(
         self, hdf_file, subset=None, train=True,
         label_key='label_indices', scaling=1000,
-        bg=None, snr=None, random_order=True
+        bg=None, snr=None, random_order=False
         ):
 
         self.hdf_file = hdf_file
@@ -43,6 +43,11 @@ class NoisySoundsDataset(Dataset):
                 if (wav.split('_')[2] != snr): continue
             valid_index.append(index)
         self.valid_index = np.array(valid_index)
+
+        # Retain the correct indices to the corresponding clean dataset
+        all_clean_indices = f'{engram_dir}indices_of_clean_corresponding_to_hyperparameter_pooled.npy'
+        all_clean_indices = np.load(all_clean_indices)
+        self.corresponding_clean_indices = all_clean_indices[self.valid_index]
 
         # Determine size of final dataset
         self.n_data = self.valid_index.size

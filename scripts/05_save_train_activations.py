@@ -162,6 +162,8 @@ def save_activations(pnet, dset, hdf5_basepath):
             data_dict = {}
             data_dict['label'] = f_out.create_dataset(
                 'label', n_data, dtype='float32')
+            data_dict['clean_index'] = f_out.create_dataset(
+                'clean_index', n_data, dtype='float32')
             data_dict['pnet_correct'] = f_out.create_dataset(
                 'pnet_correct', n_data, dtype='float32')
             for layer_idx, layer in enumerate(layers):
@@ -181,6 +183,8 @@ def save_activations(pnet, dset, hdf5_basepath):
                 # Noisy input
                 noisy_in, label = dset[data_index_offset + idx]
                 data_dict['label'][idx] = label
+                data_dict['clean_index'][idx] = dset.corresponding_clean_indices[
+                    data_index_offset + idx]
                 noisy_in = noisy_in.to(DEVICE)
                 activations, logits, output = run_pnet(pnet, noisy_in)
                 data_dict['pnet_correct'][idx] = label == output[-1]
@@ -219,11 +223,11 @@ for bg in bgs:
                 best_tf_file = tf_file
         print(f'{bg}, SNR {snr} uses {best_tf_file} with valid score {best_score}')
 
-        # Use the best hyperparameter set
+        ## Use the best hyperparameter set
         pnet = load_pnet(PNetClass, pnet_name, chckpt, best_hyperparams)
         _datafile = 'hyperparameter_pooled_training_dataset_random_order_noNulls'
         dset = NoisySoundsDataset(
-            f'{engram_dir}{_datafile}.hdf5', bg=bg, snr=snr)
+            f'{engram_dir}{_datafile}.hdf5', bg=bg, snr=snr, random_order=False)
         hdf5_basepath = f'{activ_dir}{best_tf_file}'
         print(hdf5_basepath)
         save_activations(pnet, dset, hdf5_basepath)
