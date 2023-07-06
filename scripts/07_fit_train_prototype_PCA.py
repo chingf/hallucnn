@@ -17,11 +17,12 @@ from data.ValidationDataset import NoisyDataset
 
 ##### ARGS ######
 netname = str(sys.argv[1]) # pnet
-if len(sys.argv) > 2 and str(sys.argv[2]) == 'shufflehalf':
-    print('Shuffle-half PCA. Clean even + noisy odd for model fit.')
-    shufflehalf = True
+if len(sys.argv) > 2:
+    shuffle_seed = int(sys.argv[2])
+    print(f'Shuffle-label PCA with seed {shuffle_seed}')
+    shuffle = True
 else:
-    shufflehalf = False
+    shuffle = False
     
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
 activations_dir = f'{engram_dir}3_train_activations/{netname}/'
@@ -37,7 +38,7 @@ n_units_per_layer = {
     }
 n_labels = 531 # Label 0 is for negative samples; should not be used
 
-def get_data_and_fit_PCA(conv_idx, t, pca_activations_dir):
+def get_data_and_fit_PCA(conv_idx, t, pca_activations_dir, shuffle=False):
     n_units = np.prod(n_units_per_layer[conv_idx])
     label_prototypes = [np.zeros(n_units) for l in range(n_labels)]
     label_count = [0 for l in range(n_labels)]
@@ -53,6 +54,10 @@ def get_data_and_fit_PCA(conv_idx, t, pca_activations_dir):
                     else:
                         activ = np.array(results[f'conv{conv_idx}_{t}_activations'])
                     labels = np.array(results['label'])
+                    if shuffle:
+                        np.random.seed(shuffle_seed)
+                        np.random.shuffle(labels)
+
                     n_data = labels.size 
                     activ = activ.reshape((n_data, -1))
                     for l, a in zip(labels, activ):
@@ -61,6 +66,8 @@ def get_data_and_fit_PCA(conv_idx, t, pca_activations_dir):
                         label_count[l] += 1
                 del activ
                 gc.collect()
+    if shuffle: # Undo set seed
+        np.random.seed()
     if label_count[0] > 0:
         raise ValueError('There appears to be an error-- genre label used.')
 
@@ -73,52 +80,29 @@ def get_data_and_fit_PCA(conv_idx, t, pca_activations_dir):
             labels_to_use.append(l)
         else:
             print(f'Warning: label {l} contains no samples and will be skipped.')
+
+    # Calculate and save label prototypes
     label_prototypes = np.array(label_prototypes)
     label_prototypes = label_prototypes[labels_to_use, :]
     prototype_results = {
         'labels': labels_to_use, 'label_count': label_count,
         'prototypes': label_prototypes}
     prototypes_filename = f'prototypes_conv{conv_idx}_t{t}'
+    if shuffle:
+        prototypes_filename += f'_shuffle{shuffle_seed}'
     with open(f'{pca_activations_dir}{prototypes_filename}.p', 'wb') as f:
         pickle.dump(prototype_results, f, protocol=4)
 
-    # Run PCA
+    # Run PCA and save PCA models
     print('Running PCA on label prototypes with (samples, features) shape:')
     print(label_prototypes.shape)
     pca = PCA()
-    try:
-        pca.fit(label_prototypes)
-    except:
-        import pdb; pdb.set_trace()
+    pca.fit(label_prototypes)
     pca_filename = f'PCA_conv{conv_idx}_t{t}'
+    if shuffle:
+        pca_filename += f'_shuffle{shuffle_seed}'
     with open(f'{pca_activations_dir}{pca_filename}.p', 'wb') as f:
         pickle.dump(pca, f, protocol=4)
-
-def get_shufflehalf_PCA(conv_idx, t, pca_activations_dir):
-    for bg in bg_types:
-        for snr in snr_types:
-            activ_dir = f'{activations_dir}{bg}_snr{int(snr)}/'
-            for results_file in os.listdir(activ_dir):
-                results_filepath = f'{activ_dir}{results_file}'
-                results = h5py.File(results_filepath, 'r')
-            if conv_idx > 3:
-                activ = np.array(results[f'conv{conv_idx}_W_{t}_activations'])
-                clean_activ = np.array(results[f'conv{conv_idx}_W_{t}_clean_activations'])
-            else:
-                activ = np.array(results[f'conv{conv_idx}_{t}_activations'])
-                clean_activ = np.array(results[f'conv{conv_idx}_{t}_clean_activations'])
-            n_data = activ.shape[0]
-            activ = activ.reshape((n_data, -1))
-            clean_activ = clean_activ.reshape((n_data, -1))
-            shuffle_activ = np.zeros(activ.shape)
-            shuffle_activ[::2] = np.copy(clean_activ[::2])
-            shuffle_activ[1::2] = np.copy(activ[1::2])
-            print(f'Runing shuffle PCA on {bg} {snr} with data shape {shuffle_activ.shape}')
-            pca = PCA()
-            pca.fit(shuffle_activ)
-            pca_filename = f'PCA_{bg}_{snr}_shufflehalf_conv{conv_idx}_t{t}'
-            with open(f'{pca_activations_dir}{pca_filename}.p', 'wb') as f:
-                pickle.dump(pca, f, protocol=4)
 
 def get_cpu_usage():
     total_memory, used_memory, free_memory = map(
@@ -132,12 +116,10 @@ def get_cpu_usage():
 
 if __name__ == "__main__":
     os.makedirs(pca_activations_dir, exist_ok=True)
+
     for conv_idx in [1, 2, 3, 4, 5]:
-        for t in [0, 1, 2, 3, 4]:
+        for t in [0]:
             print(f'====== PROCESSING LAYER {conv_idx}, TIMESTEP {t} ======')
-            if shufflehalf:
-                raise ValueError('Not implemented.')
-            else:
-                get_data_and_fit_PCA(conv_idx, t, pca_activations_dir)
+            get_data_and_fit_PCA(conv_idx, t, pca_activations_dir, shuffle=shuffle)
             gc.collect()
 
