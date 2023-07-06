@@ -17,8 +17,13 @@ from data.ValidationDataset import NoisyDataset
 
 # Arguments
 netname = str(sys.argv[1]) # pnet
-shuffle = False
-auc = False
+if len(sys.argv) > 2:
+    shuffle_seed = int(sys.argv[2])
+    print(f'Shuffle-label PCA with seed {shuffle_seed}')
+    shuffle = True
+else:
+    shuffle = False
+auc = True
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
 train_activations_dir = f'{engram_dir}3_train_activations/{netname}/'
 validation_activations_dir = f'{engram_dir}3_validation_activations/{netname}/'
@@ -58,10 +63,9 @@ def get_explained_var(centered_activ, pca, auc=True):
     """ ACTIV should be of shape (N, DIMS)"""
     
     sample_size = centered_activ.shape[0]
-    total_var = np.sum(np.square(centered_activ))/sample_size
     projected_activ = centered_activ @ pca.components_.T
-    var_by_component = np.sum(np.square(projected_activ), axis=0)/sample_size
-    var_by_component = var_by_component/total_var
+    total_var = np.sum(np.mean(np.square(projected_activ), axis=0))
+    var_by_component = np.mean(np.square(projected_activ), axis=0)/total_var
     if auc:
         var_curve = np.cumsum(var_by_component)
         explained_var = np.trapz(var_curve, dx=1/var_curve.size)
@@ -83,13 +87,17 @@ def main():
 
         # Load PCA model and the prototype vectors from t = 0
         prototypes_fname = f'prototypes_conv{conv_idx}_t0'
+        if shuffle:
+            prototypes_fname += f'_shuffle{shuffle_seed}'
         prototypes_fname = f'{pca_activations_dir}{prototypes_fname}.p'
         with open(prototypes_fname, 'rb') as f:
             prototype_results = pickle.load(f)
         labels_to_use = prototype_results['labels']
         prototypes = prototype_results['prototypes']
-        pca_filename = f'PCA_conv{conv_idx}_t0'
-        with open(f'{pca_activations_dir}{pca_filename}.p', 'rb') as f:
+        pca_fname = f'PCA_conv{conv_idx}_t0'
+        if shuffle:
+            pca_fname += f'_shuffle{shuffle_seed}' 
+        with open(f'{pca_activations_dir}{pca_fname}.p', 'rb') as f:
             pca = pickle.load(f)
 
         # Iterate over timesteps of predictive processing
@@ -107,6 +115,9 @@ def main():
             gc.collect()
             activ = np.vstack(activ)
             label = np.concatenate(label)
+            if shuffle:
+                np.random.seed(shuffle_seed+1)
+                np.random.shuffle(label)
 
             # Calculate factorization for each centered label
             var_ratios = []
@@ -124,8 +135,10 @@ def main():
                 factorization.append(l_var_ratio)
         
             del activ
+            del centered_activ
             del label
             gc.collect()
+            get_cpu_usage()
             
     df = pd.DataFrame({
         'Conv': convs,
