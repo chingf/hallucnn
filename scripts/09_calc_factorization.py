@@ -13,17 +13,17 @@ import matplotlib.cm as cm
 import pathlib
 import traceback
 import gc
-from data.ValidationDataset import NoisyDataset
 
 # Arguments
 netname = str(sys.argv[1]) # pnet
-if len(sys.argv) > 2:
-    shuffle_seed = int(sys.argv[2])
+subsample_fold = int(sys.argv[2]) # 0 
+if len(sys.argv) > 3:
+    shuffle_seed = int(sys.argv[3])
     print(f'Shuffle-label PCA with seed {shuffle_seed}')
     shuffle = True
 else:
     shuffle = False
-auc = True
+auc = False
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
 train_activations_dir = f'{engram_dir}3_train_activations/{netname}/'
 validation_activations_dir = f'{engram_dir}3_validation_activations/{netname}/'
@@ -41,23 +41,23 @@ def get_cpu_usage():
     p_used = round((used_memory/total_memory) * 100, 2)
     print(f"RAM {used_memory} GB, {p_used}% used")
 
-def get_valid_data(conv_idx, t, bg, snr):
-    activ_dir = f'{validation_activations_dir}{bg}_snr{int(snr)}/'
-    for results_file in os.listdir(activ_dir):
-        results_filepath = f'{activ_dir}{results_file}'
-        results = h5py.File(results_filepath, 'r')
-    if conv_idx > 3:
-        activ = np.array(results[f'conv{conv_idx}_W_{t}_activations'])
-    else:
-        activ = np.array(results[f'conv{conv_idx}_{t}_activations'])
+def subsample_train_data(conv_idx, t, bg, snr):
+    activ_dir = f'{train_activations_dir}{bg}_snr{int(snr)}/'
+    results_files = [f for f in os.listdir(activ_dir) if f'pt{subsample_fold}' in f]
+    if len(results_files) == 0: return None, None, None
+    result_file = results_files[0]
+    result_filepath = f'{activ_dir}{result_file}'
+
+    with h5py.File(result_filepath, 'r') as results:
+        if conv_idx > 3:
+            activ = np.array(results[f'conv{conv_idx}_W_{t}_activations'])
+        else:
+            activ = np.array(results[f'conv{conv_idx}_{t}_activations'])
+        label = np.array(results['label'])
+        clean_index = np.array(results['clean_index'])
     n_data = activ.shape[0]
     activ = activ.reshape((n_data, -1))
-    return activ, np.array(results['label'])
-
-def get_projection(activ, pca):
-    activ_centered = activ - pca.mean_[None,:]
-    projected_activ = activ_centered @ (pca.components_).T
-    return projected_activ
+    return activ, label, clean_index
 
 def get_explained_var(centered_activ, pca, auc=True):
     """ ACTIV should be of shape (N, DIMS)"""
@@ -85,14 +85,14 @@ def main():
 
     for conv_idx in [1,2,3,4,5]:
 
-        # Load PCA model and the prototype vectors from t = 0
-        prototypes_fname = f'prototypes_conv{conv_idx}_t0'
+        # Load PCA model and the utterance-prototype vectors from t = 0
+        prototypes_fname = f'utterance_prototypes_conv{conv_idx}_t0'
         if shuffle:
             prototypes_fname += f'_shuffle{shuffle_seed}'
         prototypes_fname = f'{pca_activations_dir}{prototypes_fname}.p'
         with open(prototypes_fname, 'rb') as f:
             prototype_results = pickle.load(f)
-        labels_to_use = prototype_results['labels']
+        utterances_to_use = prototype_results['utterances']
         prototypes = prototype_results['prototypes']
         pca_fname = f'PCA_conv{conv_idx}_t0'
         if shuffle:
@@ -104,28 +104,33 @@ def main():
         for t in [0,1,2,3,4]:
             activ = []
             label = []
+            utterance = []
             for bg in bg_types:
                 for snr in snr_types:
                     print(f'{bg}, {snr}, conv {conv_idx}, t {t}')
-                    _activ, _label = get_valid_data(conv_idx, t, bg, snr)
+                    _activ, _label, _utterance = subsample_train_data(conv_idx, t, bg, snr)
+                    if _activ is None: continue
                     activ.append(_activ)
                     label.append(_label)
+                    utterance.append(_utterance)
             del _activ
             del _label
+            del _utterance
             gc.collect()
             activ = np.vstack(activ)
             label = np.concatenate(label)
+            utterance = np.concatenate(utterance).astype(int)
             if shuffle:
                 np.random.seed(shuffle_seed+1)
-                np.random.shuffle(label)
+                np.random.shuffle(utterance)
 
             # Calculate factorization for each centered label
             var_ratios = []
-            for l_idx, l in enumerate(labels_to_use):
-                activ_indices = label==l
+            for u_idx, u in enumerate(utterances_to_use):
+                activ_indices = utterance==u
                 if np.sum(activ_indices) == 0:
                     continue
-                prototype = prototypes[l_idx]
+                prototype = prototypes[u_idx]
                 centered_activ = activ[activ_indices] - prototype[None,:]
                 l_var_ratio = get_explained_var(centered_activ, pca, auc=auc)
                 if not auc:
@@ -146,7 +151,7 @@ def main():
         'Factorization': factorization
         })
     os.makedirs(pickles_dir, exist_ok=True)
-    pfile = 'factorization.p'
+    pfile = f'factorization_fold{subsample_fold}.p'
     if auc:
         pfile = 'auc_' + pfile
     if shuffle:

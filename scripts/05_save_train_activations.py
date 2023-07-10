@@ -28,9 +28,9 @@ activations_string = str(sys.argv[2])
 pnet_name = str(sys.argv[3])
 chckpt = int(sys.argv[4])
 tf_string = str(sys.argv[5])
-merged_hyperparameters = int(sys.argv[6])
-if len(sys.argv) > 7:
-    device_num = sys.argv[7]
+if len(sys.argv) > 6:
+    device_num = sys.argv[6]
+    print(f'Setting device to {device_num}...')
     my_env = os.environ
     my_env["CUDA_VISIBLE_DEVICES"] = device_num
 
@@ -201,10 +201,7 @@ def save_activations(pnet, dset, hdf5_basepath):
 # # Run activation-saving functions
 for bg in bgs:
     for snr in snrs:
-        if merged_hyperparameters == 0:
-            tf_dir = f'{main_tf_dir}hyper_{bg}_snr{snr}/'
-        else:
-            tf_dir = f'{main_tf_dir}hyper_all/'
+        tf_dir = f'{main_tf_dir}hyper_{bg}_snr{snr}/'
         if not os.path.isdir(tf_dir): continue
         activ_dir = f'{activations_dir}{bg}_snr{int(snr)}/'
         os.makedirs(activ_dir, exist_ok=True)

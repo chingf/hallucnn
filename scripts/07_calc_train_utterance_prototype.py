@@ -36,11 +36,12 @@ n_units_per_layer = {
     5: (512, 7, 17)
     }
 n_labels = 531 # Label 0 is for negative samples; should not be used
+n_utterances = 5000
 
 def get_data_and_fit_PCA(conv_idx, t, pca_activations_dir, shuffle=False):
     n_units = np.prod(n_units_per_layer[conv_idx])
-    label_prototypes = [np.zeros(n_units) for l in range(n_labels)]
-    label_count = [0 for l in range(n_labels)]
+    utterance_prototypes = [np.zeros(n_units) for l in range(n_utterances)]
+    utterance_count = [0 for l in range(n_utterances)]
     for bg in bg_types:
         for snr in snr_types:
             activ_dir = f'{activations_dir}{bg}_snr{int(snr)}/'
@@ -48,61 +49,47 @@ def get_data_and_fit_PCA(conv_idx, t, pca_activations_dir, shuffle=False):
                 if 'pt' not in results_file: continue
                 results_filepath = f'{activ_dir}{results_file}'
                 with h5py.File(results_filepath, 'r') as results:
-                    import pdb; pdb.set_trace()
-                    if conv_idx > 3:
+                    if conv_idx == 6:
+                        activ = np.array(results[f'fc6_W_{t}_activations'])
+                    elif conv_idx > 3:
                         activ = np.array(results[f'conv{conv_idx}_W_{t}_activations'])
                     else:
                         activ = np.array(results[f'conv{conv_idx}_{t}_activations'])
-                    labels = np.array(results['label'])
+                    clean_index = np.array(results['clean_index'])
                     if shuffle:
                         np.random.seed(shuffle_seed)
-                        np.random.shuffle(labels)
-
-                    n_data = labels.size 
+                        np.random.shuffle(clean_index)
+                    n_data = clean_index.size 
                     activ = activ.reshape((n_data, -1))
-                    for l, a in zip(labels, activ):
-                        l = int(l)
-                        label_prototypes[l] += a
-                        label_count[l] += 1
+                    for i, a in zip(clean_index, activ):
+                        i = int(i)
+                        utterance_prototypes[i] += a
+                        utterance_count[i] += 1
                 del activ
                 gc.collect()
     if shuffle: # Undo set seed
         np.random.seed()
-    if label_count[0] > 0:
-        raise ValueError('There appears to be an error-- genre label used.')
 
     # Calculate prototypes
-    labels_to_use = []
-    for l, count in enumerate(label_count):
-        if l == 0: continue # Drop the 0th label (genre)
-        label_prototypes[l] /= count
+    utterances_to_use = []
+    for i, count in enumerate(utterance_count):
+        utterance_prototypes[i] /= count
         if count > 0:
-            labels_to_use.append(l)
+            utterances_to_use.append(i)
         else:
-            print(f'Warning: label {l} contains no samples and will be skipped.')
+            print(f'Warning: utterance {i} contains no samples and will be skipped.')
 
-    # Calculate and save label prototypes
-    label_prototypes = np.array(label_prototypes)
-    label_prototypes = label_prototypes[labels_to_use, :]
+    # Calculate and save utterance prototypes
+    utterance_prototypes = np.array(utterance_prototypes)
+    utterance_prototypes = utterance_prototypes[utterances_to_use, :]
     prototype_results = {
-        'labels': labels_to_use, 'label_count': label_count,
-        'prototypes': label_prototypes}
-    prototypes_filename = f'prototypes_conv{conv_idx}_t{t}'
+        'utterances': utterances_to_use, 'utterance_count': utterance_count,
+        'prototypes': utterance_prototypes}
+    prototypes_filename = f'utterance_prototypes_conv{conv_idx}_t{t}'
     if shuffle:
         prototypes_filename += f'_shuffle{shuffle_seed}'
     with open(f'{pca_activations_dir}{prototypes_filename}.p', 'wb') as f:
         pickle.dump(prototype_results, f, protocol=4)
-
-    # Run PCA and save PCA models
-    print('Running PCA on label prototypes with (samples, features) shape:')
-    print(label_prototypes.shape)
-    pca = PCA()
-    pca.fit(label_prototypes)
-    pca_filename = f'PCA_conv{conv_idx}_t{t}'
-    if shuffle:
-        pca_filename += f'_shuffle{shuffle_seed}'
-    with open(f'{pca_activations_dir}{pca_filename}.p', 'wb') as f:
-        pickle.dump(pca, f, protocol=4)
 
 def get_cpu_usage():
     total_memory, used_memory, free_memory = map(
