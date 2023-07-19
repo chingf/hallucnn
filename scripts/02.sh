@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#SBATCH --job-name=HypTempShuffle2
+#SBATCH --job-name=HypFreqShuffle2
 #SBATCH -c 3
 #SBATCH --time=99:00:00
 #SBATCH --mem-per-cpu=8gb
@@ -24,5 +24,5 @@ else
     export LD_LIBRARY_PATH=/home/cf2794/.conda/envs/hcnn/lib/python3.7/site-packages/nvidia/cublas/lib/:$LD_LIBRARY_PATH
 fi
 
-python 02_train_hyperparameters.py $SLURM_ARRAY_TASK_ID pnet_temp_shuffle2 2000 pnet_temp_shuffle2
+python 02_train_hyperparameters.py $SLURM_ARRAY_TASK_ID pnet_freq_shuffle2 1750 pnet_freq_shuffle2
 
