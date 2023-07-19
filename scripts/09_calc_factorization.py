@@ -16,21 +16,21 @@ import gc
 
 # Arguments
 netname = str(sys.argv[1]) # pnet
-subsample_fold = int(sys.argv[2]) # 0 
+sample_tag = str(sys.argv[2]) # n5000_sample0
 if len(sys.argv) > 3:
     shuffle_seed = int(sys.argv[3])
     print(f'Shuffle-label PCA with seed {shuffle_seed}')
     shuffle = True
 else:
     shuffle = False
-auc = False
+auc = True
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
-train_activations_dir = f'{engram_dir}3_train_activations/{netname}/'
-validation_activations_dir = f'{engram_dir}3_validation_activations/{netname}/'
-pca_activations_dir = f'{engram_dir}4_train_prototype_PCA/{netname}/'
+train_activations_dir = f'{engram_dir}3_train_activations/{netname}_{sample_tag}/'
+pca_activations_dir = f'{engram_dir}4_train_prototype_PCA/{netname}_{sample_tag}/'
 pickles_dir = f'{engram_dir}pickles/'
 bg_types = ['pinkNoise', 'AudScene', 'Babble8Spkr']
 snr_types = [-9.0, -6.0, -3.0, 0.0, 3.0]
+var_threshold = 0.9
 
 # Helper functions
 def get_cpu_usage():
@@ -41,23 +41,35 @@ def get_cpu_usage():
     p_used = round((used_memory/total_memory) * 100, 2)
     print(f"RAM {used_memory} GB, {p_used}% used")
 
-def subsample_train_data(conv_idx, t, bg, snr):
-    activ_dir = f'{train_activations_dir}{bg}_snr{int(snr)}/'
-    results_files = [f for f in os.listdir(activ_dir) if f'pt{subsample_fold}' in f]
-    if len(results_files) == 0: return None, None, None
-    result_file = results_files[0]
-    result_filepath = f'{activ_dir}{result_file}'
-
-    with h5py.File(result_filepath, 'r') as results:
-        if conv_idx > 3:
-            activ = np.array(results[f'conv{conv_idx}_W_{t}_activations'])
-        else:
-            activ = np.array(results[f'conv{conv_idx}_{t}_activations'])
-        label = np.array(results['label'])
-        clean_index = np.array(results['clean_index'])
-    n_data = activ.shape[0]
-    activ = activ.reshape((n_data, -1))
-    return activ, label, clean_index
+def get_train_data(conv_idx, t):
+    activ = []
+    label = []
+    utterance = []
+    for bg in bg_types:
+        for snr in snr_types:
+            print(f'{bg}, {snr}, conv {conv_idx}, t {t}')
+            activ_dir = f'{train_activations_dir}{bg}_snr{int(snr)}/'
+            results_files = [f for f in os.listdir(activ_dir) if 'pt' in f]
+            for result_file in results_files:
+                result_filepath = f'{activ_dir}{result_file}'
+                with h5py.File(result_filepath, 'r') as results:
+                    if conv_idx == 6:
+                        _activ = np.array(results[f'fc6_W_{t}_activations'])
+                    elif conv_idx > 3:
+                        _activ = np.array(results[f'conv{conv_idx}_W_{t}_activations'])
+                    else:
+                        _activ = np.array(results[f'conv{conv_idx}_{t}_activations'])
+                    _label = np.array(results['label'])
+                    _clean_index = np.array(results['clean_index'])
+                _activ = _activ.reshape((_activ.shape[0], -1))
+            activ.append(_activ)
+            label.append(_label)
+            utterance.append(_clean_index)
+    gc.collect()
+    activ = np.vstack(activ)
+    label = np.concatenate(label)
+    utterance = np.concatenate(utterance).astype(int)
+    return activ, label, utterance
 
 def get_explained_var(centered_activ, pca, auc=True):
     """ ACTIV should be of shape (N, DIMS)"""
@@ -71,7 +83,7 @@ def get_explained_var(centered_activ, pca, auc=True):
         explained_var = np.trapz(var_curve, dx=1/var_curve.size)
     else:
         pca_cum_var = np.cumsum(pca.explained_variance_ratio_)
-        K = np.argwhere(pca_cum_var>0.9)[0].item()
+        K = np.argwhere(pca_cum_var>var_threshold)[0].item()
         explained_var = np.sum(var_by_component[:K+1])
     return explained_var 
 
@@ -83,8 +95,7 @@ def main():
     ts = []
     factorization = []
 
-    for conv_idx in [1,2,3,4,5]:
-
+    for conv_idx in [1,2,3,4,5,6]:
         # Load PCA model and the utterance-prototype vectors from t = 0
         prototypes_fname = f'utterance_prototypes_conv{conv_idx}_t0'
         if shuffle:
@@ -102,29 +113,12 @@ def main():
 
         # Iterate over timesteps of predictive processing
         for t in [0,1,2,3,4]:
-            activ = []
-            label = []
-            utterance = []
-            for bg in bg_types:
-                for snr in snr_types:
-                    print(f'{bg}, {snr}, conv {conv_idx}, t {t}')
-                    _activ, _label, _utterance = subsample_train_data(conv_idx, t, bg, snr)
-                    if _activ is None: continue
-                    activ.append(_activ)
-                    label.append(_label)
-                    utterance.append(_utterance)
-            del _activ
-            del _label
-            del _utterance
-            gc.collect()
-            activ = np.vstack(activ)
-            label = np.concatenate(label)
-            utterance = np.concatenate(utterance).astype(int)
+            activ, _, utterance = get_train_data(conv_idx, t)
             if shuffle:
                 np.random.seed(shuffle_seed+1)
                 np.random.shuffle(utterance)
 
-            # Calculate factorization for each centered label
+            # Calculate factorization for each utterance-centered datapoint
             var_ratios = []
             for u_idx, u in enumerate(utterances_to_use):
                 activ_indices = utterance==u
@@ -134,14 +128,13 @@ def main():
                 centered_activ = activ[activ_indices] - prototype[None,:]
                 l_var_ratio = get_explained_var(centered_activ, pca, auc=auc)
                 if not auc:
-                    l_var_ratio = l_var_ratio / 0.9
+                    l_var_ratio = l_var_ratio / var_threshold
                 convs.append(conv_idx)
                 ts.append(t)
                 factorization.append(l_var_ratio)
         
             del activ
             del centered_activ
-            del label
             gc.collect()
             get_cpu_usage()
             
@@ -151,7 +144,7 @@ def main():
         'Factorization': factorization
         })
     os.makedirs(pickles_dir, exist_ok=True)
-    pfile = f'factorization_fold{subsample_fold}.p'
+    pfile = f'factorization_{sample_tag}.p'
     if auc:
         pfile = 'auc_' + pfile
     if shuffle:

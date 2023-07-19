@@ -107,23 +107,14 @@ def main():
         # Iterate over timesteps of predictive processing
         for t in [0,1,2,3,4]:
             activity = get_train_data(conv_idx, t, shuffle=shuffle)
-
-            # Get variance due to noise
-            avg_utterance_activity = [np.mean(a, axis=0) for a in activity]
-            var_noise = np.nanvar(avg_utterance_activity, axis=0).sum()
-            del avg_utterance_activity
-            gc.collect()
-
-            # Get total variance
             flattened_activity = [row for a in activity for row in a]
-            del activity
-            gc.collect()
-            var_all = np.nanvar(flattened_activity, axis=0).sum()
+            flattened_activity = np.array(flattened_activity)
 
             # Collect data
-            convs.append(conv_idx)
-            ts.append(t)
-            invariance.append(var_noise/var_all)
+            activity_norm = np.linalg.norm(flattened_activity, axis=1).tolist()
+            convs.extend([conv_idx]*len(activity_norm))
+            ts.extend([t]*len(activity_norm))
+            invariance.extend(activity_norm)
             del flattened_activity
             gc.collect()
             
@@ -133,7 +124,7 @@ def main():
         'Invariance': invariance
         })
     os.makedirs(pickles_dir, exist_ok=True)
-    pfile = f'invariance_{sample_tag}.p'
+    pfile = f'norm_{sample_tag}.p'
     if shuffle:
         pfile = 'shuffle_' + pfile
     pfile = f'{pickles_dir}{netname}_{pfile}'
