@@ -6,6 +6,7 @@
 import os
 import sys
 import numpy as np
+import gc
 import pickle
 import time
 import h5py
@@ -68,7 +69,7 @@ def main():
             pnet = load_pnet(PNetClass, pnet_name, chckpt)
             dset = NoisyDataset(bg, snr)
             eval_loader = DataLoader(
-                dset, batch_size=32, shuffle=False,
+                dset, batch_size=16, shuffle=False,
                 num_workers=2, pin_memory=True)
             scores = eval_pcoders_r2(pnet, eval_loader, DEVICE)
             for layer, score in enumerate(scores):
@@ -76,6 +77,10 @@ def main():
                 results['snr'].append(snr)
                 results['score'].append(score)
                 results['layer'].append(layer)
+            del pnet
+            del dset
+            del eval_loader
+            gc.collect()
 
     # Save results into a pickle file
     os.makedirs(pickles_dir, exist_ok=True)
