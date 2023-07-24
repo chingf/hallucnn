@@ -11,6 +11,7 @@ from torch.utils.data import Subset
 from utils import train_pcoders, eval_pcoders
 from models.networks_2022 import BranchedNetwork
 from data.ReconstructionTrainingDataset import CleanSoundsDataset
+from data.HyperparameterTrainingDataset import TmpNoisyDatasetForReconstructionTraining
 from models.pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
 
 # load user-defined parameters
@@ -40,8 +41,8 @@ elif dset_mod == 'freq_shuffle':
 elif dset_mod == 'noisy':
     print('Reconstruction on noisy sounds')
     _train_datafile = 'hyperparameter_pooled_training_dataset_random_order_noNulls'
-    SoundsDataset = NoisySoundsDataset
-    dset_kwargs = {'snr': 'neg9'}
+    SoundsDataset = TmpNoisyDatasetForReconstructionTraining
+    dset_kwargs = {}
 else:
     raise ValueError('Unrecognized dataset modification')
 PNetClass = PBranchedNetwork_AllSeparateHP
@@ -94,10 +95,8 @@ optimizer = torch.optim.Adam([
     ], weight_decay=5e-4)
 
 # Set up dataset
-train_dataset = SoundsDataset(train_datafile, subset=.9, **dset_kwargs)
-test_dataset = SoundsDataset(
-    train_datafile, subset=.9, train = False, **dset_kwargs
-    )
+train_dataset = SoundsDataset(train_datafile, train=True, **dset_kwargs)
+test_dataset = SoundsDataset(train_datafile, train=False, **dset_kwargs)
 train_loader = DataLoader(
     train_dataset, batch_size=BATCH_SIZE, shuffle=False,
     num_workers=NUM_WORKERS, pin_memory=PIN_MEMORY

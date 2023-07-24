@@ -13,7 +13,7 @@ class CleanSoundsDataset(Dataset):
     """
 
     def __init__(
-        self, hdf_file, subset=None, train=True, label_key='label_indices',
+        self, hdf_file, subset=0.9, train=True, label_key='label_indices',
         scaling=1000, cgram_shuffle=0
         ):
         self.hdf_file = hdf_file
@@ -32,7 +32,7 @@ class CleanSoundsDataset(Dataset):
                 self.shuffle_idxs[i] = indices
         elif self.cgram_shuffle == 2: # preserves freq info, not temporal info
             self.shuffle_idxs = np.zeros((self.n_data, 400), dtype=int)
-            for i in r ange(self.n_data):
+            for i in range(self.n_data):
                 indices = np.arange(400, dtype=int)
                 np.random.shuffle(indices)
                 self.shuffle_idxs[i] = indices
