@@ -18,19 +18,20 @@ from predify.utils.training import train_pcoders, eval_pcoders
 
 from models.networks_2022 import BranchedNetwork
 from models.pbranchednetwork_all import PBranchedNetwork_AllSeparateHP
-from data.ValidationDataset import NoisyDataset, FullNoisyDataset
+from data.ValidationDataset import NoisyDataset, FullNoisyDataset, CleanCounterpart
 from utils import eval_pcoders_r2
 
 # Arguments 
 pnet_name = str(sys.argv[1])
 chckpt = int(sys.argv[2])
-if len(sys.argv) > 3:
-    device_num = sys.argv[3]
+clean_data = bool(int(sys.argv[3]))
+if len(sys.argv) > 4:
+    device_num = sys.argv[4]
     my_env = os.environ
     my_env["CUDA_VISIBLE_DEVICES"] = device_num
 
 # Relevant paths and parameters
-snrs = [-9.0, -6.0, -3.0, 0.0, 3.0]
+snrs = [3.0, 0.0, -3.0, -6.0, -9.0]
 bgs = ['Babble8Spkr', 'AudScene', 'pinkNoise']
 PNetClass = PBranchedNetwork_AllSeparateHP
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
@@ -67,7 +68,10 @@ def main():
         for snr in snrs:
             # Use the best hyperparameter set
             pnet = load_pnet(PNetClass, pnet_name, chckpt)
-            dset = NoisyDataset(bg, snr)
+            if clean_data:
+                dset = CleanCounterpart(bg, snr)
+            else:
+                dset = NoisyDataset(bg, snr)
             eval_loader = DataLoader(
                 dset, batch_size=16, shuffle=False,
                 num_workers=2, pin_memory=True)
@@ -82,9 +86,18 @@ def main():
             del eval_loader
             gc.collect()
 
+            if clean_data:
+                break
+        if clean_data:
+            break
+
     # Save results into a pickle file
     os.makedirs(pickles_dir, exist_ok=True)
-    pfile = f'{pickles_dir}{pnet_name}_reconstruction_r2.p'
+    if clean_data:
+        pfile = 'reconstruction_r2_clean.p'
+    else:
+        pfile = 'reconstruction_r2.p'
+    pfile = f'{pickles_dir}{pnet_name}_{pfile}'
     with open(pfile, 'wb') as f:
         pickle.dump(results, f)
 

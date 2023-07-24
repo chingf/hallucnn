@@ -28,6 +28,57 @@ class LargeNoisyDataset(Dataset):
         labels = np.array(self.f['label_indices'][idx])
         return torch.tensor(items), torch.tensor(labels).type(torch.LongTensor)
 
+class CleanCounterpart(Dataset):
+    '''
+    WSJ Validation Utterances. Wrapper around FullNoisyDataset to allow for
+    selection of subsets. Options include:
+    bgs = ['pinkNoise' 'AudScene', 'Babble8Spkr']
+    snrs = [-9.0, -6.0, -3.0, 0.0, 3.0]
+    '''
+
+    def __init__(self, bg, snr, orig_dset='WSJ'):
+        fullnoisydata = FullNoisyDataset()
+        idxs = fullnoisydata.orig_dset == orig_dset
+
+        if bg != 'pinkNoise':
+            idxs = np.logical_and(idxs, fullnoisydata.bg == bg)
+            idxs = np.logical_and(idxs, fullnoisydata.snr == snr)
+            self.noisy_in = fullnoisydata.noisy_in[idxs]
+            self.bg = fullnoisydata.bg[idxs]
+            self.snr = fullnoisydata.snr[idxs]
+            self.net_mistakes = fullnoisydata.net_mistakes[idxs]
+        else:
+            with h5py.File(
+                f'{engram_dir}psychophysics_{bg}_{int(snr)}_fixed.hdf5', 'r'
+                ) as f:
+                self.noisy_in = np.array(f['data']).reshape((-1, 164, 400))*1000
+                _idxs = np.zeros(idxs.shape).astype(bool)
+                _idxs[:self.noisy_in.shape[0]] = True
+                idxs = np.logical_and(idxs, _idxs)
+                self.noisy_in = self.noisy_in[idxs[:self.noisy_in.shape[0]]]
+                n_data = self.noisy_in.shape[0]
+                self.bg = np.array([bg] * n_data)
+                self.snr = np.array([snr] * n_data)
+                self.net_mistakes = np.array([None] * n_data)
+                assert('Timit' not in fullnoisydata.orig_dset[idxs])
+            
+        self.clean_in = fullnoisydata.clean_in[idxs]
+        self.clean_in = self.clean_in.reshape((-1, 164, 400))
+        self.labels = fullnoisydata.labels[idxs]
+        self.orig_dset = fullnoisydata.orig_dset[idxs]
+        self.n_data = self.labels.size
+
+    def __len__(self):
+        return self.n_data
+
+    def __getitem__(self, idx):
+        
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        item = self.clean_in[idx]
+        label = self.labels[idx]
+        return torch.tensor(item), torch.tensor(label)
+
 class NoisyDataset(Dataset):
     '''
     WSJ Validation Utterances. Wrapper around FullNoisyDataset to allow for
