@@ -7,7 +7,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=chingfang17@gmail.com
-#SBATCH --array=0-14
+#SBATCH --array=8-14
 
 source ~/.bashrc
 hostname=$HOSTNAME 

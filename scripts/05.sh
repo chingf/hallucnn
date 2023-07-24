@@ -7,7 +7,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=chingfang17@gmail.com
-#SBATCH --array=8-14
+#SBATCH --array=0-14
 
 source ~/.bashrc
 hostname=$HOSTNAME 
@@ -24,5 +24,5 @@ else
     export LD_LIBRARY_PATH=/home/cf2794/.conda/envs/hcnn/lib/python3.7/site-packages/nvidia/cublas/lib/:$LD_LIBRARY_PATH
 fi
 
-python 05_save_validation_activations.py $SLURM_ARRAY_TASK_ID pnet_temp_shuffle pnet_temp_shuffle 2140 pnet_temp_shuffle
+python 05_save_validation_activations.py $SLURM_ARRAY_TASK_ID pnet3 pnet3 1785 pnet3
 
