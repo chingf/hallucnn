@@ -275,13 +275,23 @@ def train_and_eval(bg, snr):
 net_dir = f'hyper_{bg}_snr{snr}'
 net_dir = f'{tensorboard_dir}{net_dir}'
 os.makedirs(net_dir, exist_ok=True)
-#n_tboards = len(os.listdir(net_dir))
-#n_iters = max(0, max_iters-n_tboards)
+max_iters = 3
+n_tboards = 0
+for filename in os.listdir(net_dir):
+    filepath = os.path.join(net_dir, filename)
+    if os.path.isfile(filepath):
+        file_size = os.path.getsize(filepath) / 1024
+        if filename.startswith('events.out') and file_size > 800:
+            n_tboards += 1
+        elif filename.endswith('.p') and file_size > 500:
+            n_tboards += 1
+
+n_iters = max(0, max_iters-n_tboards)
 print("=====================")
 print(f'{bg}, for SNR {snr}')
 print(tensorboard_dir)
 print("=====================")
 
-for _ in range(4):
+for _ in range(n_iters):
     train_and_eval(bg, snr)
     
