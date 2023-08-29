@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#SBATCH --job-name=PnetNoisy
+#SBATCH --job-name=PnetN4
 #SBATCH -c 2 
 #SBATCH --time=99:00:00
 #SBATCH --mem-per-cpu=8gb
@@ -24,4 +24,4 @@ else
     export LD_LIBRARY_PATH=/home/cf2794/.conda/envs/hcnn/lib/python3.7/site-packages/nvidia/cublas/lib/:$LD_LIBRARY_PATH
 fi
 
-python 01_train_net.py pnet_noisy 2000 noisy
+python 01_train_net.py pnet_noisy4 2000 noisy

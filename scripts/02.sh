@@ -1,13 +1,14 @@
 #!/bin/sh
 #
-#SBATCH --job-name=HypFreqShuffle2
+#SBATCH --job-name=HypP4
 #SBATCH -c 3
 #SBATCH --time=99:00:00
 #SBATCH --mem-per-cpu=8gb
 #SBATCH --gres=gpu:1
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=chingfang17@gmail.com
-#SBATCH --array=8-14
+#SBATCH --array=10-14
+#SBATCH --exclude=ax04
 
 source ~/.bashrc
 hostname=$HOSTNAME 
@@ -24,5 +25,4 @@ else
     export LD_LIBRARY_PATH=/home/cf2794/.conda/envs/hcnn/lib/python3.7/site-packages/nvidia/cublas/lib/:$LD_LIBRARY_PATH
 fi
 
-python 02_train_hyperparameters.py $SLURM_ARRAY_TASK_ID pnet_freq_shuffle2 1750 pnet_freq_shuffle2
-
+python 02_train_hyperparameters.py $SLURM_ARRAY_TASK_ID pnet4 2000 pnet4
