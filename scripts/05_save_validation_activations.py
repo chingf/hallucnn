@@ -28,8 +28,8 @@ activations_string = str(sys.argv[2])
 pnet_name = str(sys.argv[3])
 chckpt = int(sys.argv[4])
 tf_string = str(sys.argv[5])
-if len(sys.argv) > 7:
-    device_num = sys.argv[7]
+if len(sys.argv) > 6:
+    device_num = sys.argv[6]
     my_env = os.environ
     my_env["CUDA_VISIBLE_DEVICES"] = device_num
 
@@ -211,6 +211,7 @@ for bg in bgs:
         best_hyperparams = None
         best_tf_file = None
         for tf_file in os.listdir(tf_dir):
+            if not tf_file.startswith('event'): continue
             tf_filepath = f'{tf_dir}{tf_file}'
             tf_file = tf_file.split('edu.')[-1]
             hyperparams, score = get_hyperparams(tf_filepath, bg, snr)
@@ -228,5 +229,14 @@ for bg in bgs:
         hdf5_path = f'{activ_dir}{best_tf_file}.hdf5'
         if os.path.exists(hdf5_path):
             continue
+
+        # Deleting other HDF5 files made from less good hyperparameters
+        for other_file in os.listdir(activ_dir):
+            if other_file.endswith('hdf5'):
+                print(f'Removing suboptimal {activ_dir+other_file}...')
+                os.remove(activ_dir + other_file)
+
+        # Save activations for the best hyperparameter set
+        print('Saving best activations now')
         save_activations(pnet, dset, hdf5_path)
 

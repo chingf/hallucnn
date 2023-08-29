@@ -209,6 +209,7 @@ for bg in bgs:
         best_hyperparams = None
         best_tf_file = None
         for tf_file in os.listdir(tf_dir):
+            if not tf_file.startswith('event'): continue
             tf_filepath = f'{tf_dir}{tf_file}'
             tf_file = tf_file.split('edu.')[-1]
             hyperparams, score = get_hyperparams(tf_filepath, bg, snr)
