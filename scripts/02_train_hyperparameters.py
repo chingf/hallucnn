@@ -19,11 +19,23 @@ pnet_name = str(sys.argv[2])
 pnet_chckpt = int(sys.argv[3])
 tensorboard_pnet_name = str(sys.argv[4])
 if len(sys.argv) > 5:
-    print("Ablation argument received.")
-    ablate = str(sys.argv[5])
-    if (ablate != 'erm') and (ablate != 'fbm'):
-        raise ValueError('Not valid ablation type')
+    print("Training modification argument received.")
+    mod = str(sys.argv[5])
+    if (mod != 'erm') and (mod != 'fbm') and (not mod.startswith('random')):
+        raise ValueError('Not valid modification type')
+    if mod.startswith('random'):
+        random_weights = True
+        random_weight_seed = int(mod.split('=')[-1])
+        ablate = None
+        if 'random' not in tensorboard_pnet_name:
+            raise ValueError('Modification RANDOM should be in tensorboard name.')
+    else:
+        random_weights = False
+        ablate = mod
+        if ablate not in tensorboard_pnet_name:
+            raise ValueError('Modification ABLATE should be in tensorboard name.')
 else:
+    random_weights = False
     ablate = None
 
 task_args = []
@@ -63,6 +75,16 @@ fb_state_dict = torch.load(fb_state_dict_path)
 
 # # Helper functions
 
+def randomly_shuffle_decoders(state_dict):
+    torch.random.manual_seed(random_weight_seed)
+    for key in state_dict.keys():
+        if 'pcoder' not in key: continue
+        if 'sqrt' in key: continue
+        x = state_dict[key]
+        shuffle_indices = torch.randperm(x.nelement())
+        state_dict[key] = x.view(-1)[shuffle_indices].view(x.size())
+    torch.random.seed()
+
 def load_pnet(
         net, state_dict, build_graph, random_init,
         ff_multiplier, fb_multiplier, er_multiplier, device='cuda:0'):
@@ -71,6 +93,8 @@ def load_pnet(
         net, build_graph=build_graph, random_init=random_init,
         ff_multiplier=ff_multiplier, fb_multiplier=fb_multiplier, er_multiplier=er_multiplier
         )
+    if random_weights:
+        state_dict = randomly_shuffle_decoders(state_dict)
     pnet.load_state_dict(state_dict)
     hyperparams = []
     for i in range(1, 6):
@@ -208,8 +232,7 @@ def train_and_eval(bg, snr):
         fbm = 0.
         ffm = np.random.uniform(high=1.-fbm)
         erm = np.random.uniform()
-    pnet = load_pnet(
-        net, fb_state_dict, build_graph=True, random_init=False,
+    pnet = load_pnet(net, fb_state_dict, build_graph=True, random_init=False,
         ff_multiplier=ffm, fb_multiplier=fbm, er_multiplier=erm, device='cuda:0')
 
     # Set up loss function and hyperparameters
