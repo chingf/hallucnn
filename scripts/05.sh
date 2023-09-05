@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#SBATCH --job-name=Activ
+#SBATCH --job-name=ActivTS3
 #SBATCH -c 4
 #SBATCH --time=99:00:00
 #SBATCH --mem-per-cpu=8gb
@@ -24,5 +24,5 @@ else
     export LD_LIBRARY_PATH=/home/cf2794/.conda/envs/hcnn/lib/python3.7/site-packages/nvidia/cublas/lib/:$LD_LIBRARY_PATH
 fi
 
-python 05_save_validation_activations.py $SLURM_ARRAY_TASK_ID pnet3 pnet3 1785 pnet3
+python 05_save_validation_activations.py $SLURM_ARRAY_TASK_ID pnet_temp_shuffle3 pnet_temp_shuffle3 2000 pnet_temp_shuffle3
 

@@ -104,7 +104,7 @@ for _bg in bgs:
 file_prefix = 'pearsonr'
 dist_func = pearsonr_sim
 engram_dir = '/mnt/smb/locker/abbott-locker/hcnn/'
-activations_dir = f'{engram_dir}3_activations/{exp}/'
+activations_dir = f'{engram_dir}3_validation_activations/{exp}/'
 pickles_dir = f'{engram_dir}pickles/{exp}_denoising/'
 os.makedirs(pickles_dir, exist_ok=True)
 bg, snr = args[task_number]
